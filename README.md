@@ -1,4 +1,4 @@
-# SuperTalks - Astrologer Frontend
+# SuperTalks - Astrologer Admin Frontend
 
 Astrologer-facing web app for the SuperTalks platform. Astrologers can register, manage their profile, answer client questions, and handle bookings.
 
