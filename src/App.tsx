@@ -10,6 +10,7 @@ import DashboardPage from "@/pages/Dashboard";
 import QuestionsPage from "@/pages/Questions";
 import BookingsPage from "@/pages/Bookings";
 import ProfilePage from "@/pages/Profile";
+import WebsitePage from "@/pages/Website";
 
 function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -72,6 +73,16 @@ export function App() {
               <AstrologerRoute>
                 <DashboardLayout>
                   <ProfilePage />
+                </DashboardLayout>
+              </AstrologerRoute>
+            }
+          />
+          <Route
+            path="/website"
+            element={
+              <AstrologerRoute>
+                <DashboardLayout>
+                  <WebsitePage />
                 </DashboardLayout>
               </AstrologerRoute>
             }

@@ -11,6 +11,10 @@ import type {
   PaginatedBookings,
   PaginatedQuestions,
   AstrologerStats,
+  WebsiteTemplate,
+  MySite,
+  SiteDocument,
+  StoredTemplateData,
 } from "@/types";
 
 type HttpMethod = "GET" | "POST" | "PATCH" | "DELETE";
@@ -184,6 +188,27 @@ export const astrologerApi = {
     api<{ message: string }>(`/astrologers/me/exceptions/${id}`, {
       method: "DELETE",
     }),
+
+  getMySite: () => api<MySite>("/astrologers/me/site"),
+
+  saveTemplateData: (data: {
+    templateId?: string;
+    templateData: StoredTemplateData;
+  }) =>
+    api<{ profile: AstrologerProfile; site: SiteDocument }>(
+      "/astrologers/me/template-data",
+      {
+        method: "PATCH",
+        body: data,
+      },
+    ),
+};
+
+// Templates API
+export const templatesApi = {
+  list: () => api<{ templates: WebsiteTemplate[] }>("/templates"),
+
+  get: (id: string) => api<{ template: WebsiteTemplate }>(`/templates/${id}`),
 };
 
 function buildListPath(

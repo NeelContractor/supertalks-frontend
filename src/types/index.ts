@@ -134,3 +134,74 @@ export interface AstrologerStats {
   totalBookings: number;
   totalEarningsPaise: number;
 }
+
+// Website customization
+
+export type TemplateFieldType =
+  | "text"
+  | "textarea"
+  | "image"
+  | "select"
+  | "color"
+  | "number"
+  | "array";
+
+export interface TemplateField {
+  type: TemplateFieldType;
+  default?: unknown;
+  options?: string[];
+  min?: number;
+  max?: number;
+  step?: number;
+  itemName?: string;
+  itemProps?: Record<string, TemplateField>;
+}
+
+export interface TemplateSectionField {
+  id: string;
+  type: string;
+  name: string;
+  default: boolean;
+  props: Record<string, TemplateField>;
+}
+
+export interface TemplateSchema {
+  design: Record<string, TemplateField>;
+  sections: TemplateSectionField[];
+}
+
+export interface WebsiteTemplate {
+  id: string;
+  name: string;
+  previewImageUrl?: string | null;
+  schema: TemplateSchema;
+  isActive: boolean;
+}
+
+export interface SiteSectionDoc {
+  id: string;
+  type: string;
+  name: string;
+  default: boolean;
+  props: Record<string, unknown>;
+}
+
+export interface SiteDocument {
+  design: Record<string, string | number>;
+  sections: SiteSectionDoc[];
+}
+
+export interface StoredTemplateData {
+  design: Record<string, string | number>;
+  sections: Record<string, { props: Record<string, unknown> }>;
+}
+
+export interface MySite {
+  slug: string;
+  astrologerName: string;
+  templateId: string;
+  templateName: string;
+  templatePreviewImageUrl?: string | null;
+  schema: TemplateSchema;
+  site: SiteDocument;
+}

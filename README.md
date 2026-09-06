@@ -97,3 +97,6 @@ The frontend talks to the backend at `http://localhost:3000` (`src/lib/api.ts`).
 **Questions:** `GET /questions?limit=&offset=&status=`, `PATCH /questions/:id/answer`, `PATCH /questions/:id/reject`
 
 > The `GET /bookings` and `GET /questions` list endpoints are paginated server-side via `limit` (default 10, max 100) and `offset` query params. Responses include a `total` and per-status `counts` object, used by the dashboard stats cards and the per-tab count badges. List pages use the shadcn pagination control to page through results.
+
+# TODO 
+- add mobile view to customize tab

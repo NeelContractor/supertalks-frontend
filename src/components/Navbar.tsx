@@ -8,17 +8,19 @@ import {
   CalendarDays,
   User,
   LogOut,
+  LayoutTemplate,
 } from "lucide-react";
 
 const navItems = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/questions", label: "Questions", icon: HelpCircle },
   { to: "/bookings", label: "Bookings", icon: CalendarDays },
+  { to: "/website", label: "Customize", icon: LayoutTemplate },
   { to: "/profile", label: "Profile", icon: User },
 ];
 
 export function Navbar() {
-  const { user, profile, signout } = useAuth();
+  const { user, signout } = useAuth();
   const location = useLocation();
 
   return (
@@ -50,26 +52,6 @@ export function Navbar() {
           </nav>
         </div>
         <div className="flex items-center gap-3">
-          {profile?.status && (
-            <span
-              title={
-                profile.status === "Pending"
-                  ? "Your profile is awaiting admin approval"
-                  : profile.status === "Approved"
-                    ? "Your profile is live"
-                    : "Your profile has been suspended"
-              }
-              className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                profile.status === "Approved"
-                  ? "bg-green-100 text-green-700"
-                  : profile.status === "Pending"
-                    ? "bg-yellow-100 text-yellow-700"
-                    : "bg-red-100 text-red-700"
-              }`}
-            >
-              {profile.status === "Pending" ? "Approval Pending" : profile.status}
-            </span>
-          )}
           <Avatar className="h-8 w-8">
             <AvatarFallback className="text-xs">
               {user?.name?.charAt(0)?.toUpperCase() ?? "?"}
