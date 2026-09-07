@@ -1,5 +1,5 @@
-import { useEffect, useState, useCallback } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { questionsApi } from "@/lib/api";
 import type { Question, QuestionCounts } from "@/types";
 import { Button } from "@/components/ui/button";
@@ -29,7 +29,11 @@ import { MessageSquare, ChevronLeft, ChevronRight } from "lucide-react";
 
 const PAGE_SIZE = 10;
 
+// Astrologers only see paid questions; only queued (unanswered-paid) ones can be rejected.
+const REJECTABLE_STATUSES = ["Queued"];
+
 export default function QuestionsPage() {
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [questions, setQuestions] = useState<Question[]>([]);
   const [total, setTotal] = useState(0);
@@ -37,13 +41,11 @@ export default function QuestionsPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("all");
   const [page, setPage] = useState(0);
-  const [answerDialog, setAnswerDialog] = useState<Question | null>(null);
   const [rejectDialog, setRejectDialog] = useState<Question | null>(null);
-  const [answerText, setAnswerText] = useState("");
   const [rejectReason, setRejectReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  const load = useCallback(async (targetPage: number) => {
+  const load = async (targetPage: number) => {
     setLoading(true);
     try {
       const status = filter === "all" ? undefined : filter;
@@ -57,8 +59,8 @@ export default function QuestionsPage() {
       if (highlightId && targetPage === 0) {
         const match = data.questions.find((q) => q.id === highlightId);
         if (match) {
-          setAnswerDialog(match);
-          setAnswerText("");
+          navigate(`/questions/${match.id}`, { replace: true });
+        } else {
           setSearchParams({}, { replace: true });
         }
       }
@@ -67,32 +69,14 @@ export default function QuestionsPage() {
     } finally {
       setLoading(false);
     }
-  }, [filter, searchParams, setSearchParams]);
+  };
 
   useEffect(() => {
     load(page);
-    // reset page on filter change only
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filter]);
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-
-  const handleAnswer = async () => {
-    if (!answerDialog || !answerText.trim()) return;
-    setSubmitting(true);
-    try {
-      await questionsApi.answer(answerDialog.id, answerText.trim());
-      toast.success("Question answered");
-      setAnswerDialog(null);
-      setAnswerText("");
-      setPage(0);
-      load(0);
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Failed to answer");
-    } finally {
-      setSubmitting(false);
-    }
-  };
 
   const handleReject = async () => {
     if (!rejectDialog) return;
@@ -119,11 +103,40 @@ export default function QuestionsPage() {
     Refunded: counts?.Refunded ?? questions.filter((q) => q.status === "Refunded").length,
   };
 
+  const openChat = (q: Question) => {
+    navigate(`/questions/${q.id}`);
+  };
+
+  const messagePreview = (q: Question) => {
+    if (q.lastMessage) {
+      const who = q.lastMessage.senderRole === "Astrologer" ? "You" : q.client?.name ?? "Client";
+      return `${who}: ${q.lastMessage.body}`;
+    }
+    if (q.answerText) return `You: ${q.answerText}`;
+    return null;
+  };
+
+  const canReply = (q: Question) => q.status === "Queued" || q.status === "Answered";
+
+  const handleUnreject = async (q: Question) => {
+    setSubmitting(true);
+    try {
+      await questionsApi.unreject(q.id);
+      toast.success("Question restored to the queue");
+      setPage(0);
+      load(0);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to unreject");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold">Questions</h1>
-        <p className="text-muted-foreground">Answer or reject client questions</p>
+        <p className="text-muted-foreground">Chat with clients about their questions</p>
       </div>
 
       <Tabs
@@ -179,10 +192,10 @@ export default function QuestionsPage() {
                   </CardHeader>
                   <CardContent className="space-y-3">
                     <p className="text-sm">{q.questionText}</p>
-                    {q.answerText && (
+                    {messagePreview(q) && (
                       <div className="rounded-md bg-muted p-3">
-                        <p className="text-xs font-medium text-muted-foreground mb-1">Your Answer</p>
-                        <p className="text-sm">{q.answerText}</p>
+                        <p className="text-xs font-medium text-muted-foreground mb-1">Last message</p>
+                        <p className="text-sm">{messagePreview(q)}</p>
                       </div>
                     )}
                     {q.rejectionReason && (
@@ -191,11 +204,17 @@ export default function QuestionsPage() {
                         <p className="text-sm">{q.rejectionReason}</p>
                       </div>
                     )}
-                    {q.status === "Queued" && (
-                      <div className="flex gap-2 pt-2">
-                        <Button size="sm" onClick={() => { setAnswerDialog(q); setAnswerText(""); }}>
-                          Answer
+                    <div className="flex gap-2 pt-2">
+                      {canReply(q) ? (
+                        <Button size="sm" onClick={() => openChat(q)}>
+                          Chat
                         </Button>
+                      ) : (
+                        <Button size="sm" variant="outline" onClick={() => openChat(q)}>
+                          View
+                        </Button>
+                      )}
+                      {REJECTABLE_STATUSES.includes(q.status) && (
                         <Button
                           size="sm"
                           variant="destructive"
@@ -203,8 +222,13 @@ export default function QuestionsPage() {
                         >
                           Reject
                         </Button>
-                      </div>
-                    )}
+                      )}
+                      {q.status === "Rejected" && (
+                        <Button size="sm" variant="outline" onClick={() => void handleUnreject(q)}>
+                          Unreject
+                        </Button>
+                      )}
+                    </div>
                     <p className="text-xs text-muted-foreground">
                       {new Date(q.createdAt).toLocaleString()}
                     </p>
@@ -272,39 +296,6 @@ export default function QuestionsPage() {
           )}
         </TabsContent>
       </Tabs>
-
-      {/* Answer Dialog */}
-      <Dialog open={!!answerDialog} onOpenChange={(open) => !open && setAnswerDialog(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Answer Question</DialogTitle>
-            <DialogDescription>From {answerDialog?.client?.name ?? "Client"}</DialogDescription>
-          </DialogHeader>
-          {answerDialog && (
-            <div className="space-y-4">
-              <p className="text-sm rounded-md bg-muted p-3">{answerDialog.questionText}</p>
-              <div className="space-y-2">
-                <Label htmlFor="answer">Your Answer</Label>
-                <Textarea
-                  id="answer"
-                  placeholder="Type your answer here..."
-                  value={answerText}
-                  onChange={(e) => setAnswerText(e.target.value)}
-                  rows={5}
-                />
-              </div>
-            </div>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setAnswerDialog(null)}>
-              Cancel
-            </Button>
-            <Button onClick={handleAnswer} disabled={submitting || !answerText.trim()}>
-              {submitting ? "Submitting..." : "Submit Answer"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Reject Dialog */}
       <Dialog open={!!rejectDialog} onOpenChange={(open) => !open && setRejectDialog(null)}>

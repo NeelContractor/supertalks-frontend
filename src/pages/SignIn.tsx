@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,16 +17,19 @@ import { toast } from "sonner";
 export default function SignInPage() {
   const { signin } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const expired = searchParams.get("expired") === "1";
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     try {
       await signin(identifier, password);
-      navigate("/dashboard");
+      const next = searchParams.get("next");
+      navigate(next || "/dashboard");
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Sign in failed";
       toast.error(message);
@@ -42,6 +45,11 @@ export default function SignInPage() {
           <CardTitle className="text-2xl">Welcome Back</CardTitle>
           <CardDescription>Sign in to your astrologer account</CardDescription>
         </CardHeader>
+        {expired && (
+          <div className="mx-6 rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            Your session expired. Please sign in again to continue.
+          </div>
+        )}
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
             <div className="space-y-2">

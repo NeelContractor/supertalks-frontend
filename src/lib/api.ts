@@ -8,6 +8,8 @@ import type {
   AvailabilityException,
   Booking,
   Question,
+  QuestionMessage,
+  QuestionThread,
   PaginatedBookings,
   PaginatedQuestions,
   AstrologerStats,
@@ -35,6 +37,24 @@ class ApiError extends Error {
     this.status = status;
     this.data = data;
   }
+}
+
+/**
+ * When a request that carried an access token comes back 401 the session is
+ * expired/invalid. Clear it once and send the user back to sign in instead of
+ * leaving them staring at a failed data fetch.
+ */
+let expiredRedirectPending = false;
+
+function handleExpiredSession() {
+  clearTokens();
+  localStorage.removeItem("user");
+  if (expiredRedirectPending) return;
+  expiredRedirectPending = true;
+  const current = window.location.pathname;
+  window.location.assign(
+    current === "/signin" ? current : `/signin?expired=1&next=${encodeURIComponent(current + window.location.search)}`
+  );
 }
 
 export function getAccessToken(): string | null {
@@ -79,6 +99,9 @@ export async function api<T = unknown>(
   const data = await res.json().catch(() => null);
 
   if (!res.ok) {
+    if (res.status === 401 && token) {
+      handleExpiredSession();
+    }
     throw new ApiError(res.status, (data as { error?: string })?.error ?? res.statusText, data);
   }
 
@@ -167,6 +190,15 @@ export const astrologerApi = {
   deleteAvailabilityRule: (id: string) =>
     api<{ message: string }>(`/astrologers/me/availability-rules/${id}`, {
       method: "DELETE",
+    }),
+
+  bulkSetAvailabilityRules: (data: {
+    daysOfWeek: number[];
+    windows: { startTime: string; endTime: string }[];
+  }) =>
+    api<{ rules: AvailabilityRule[] }>("/astrologers/me/availability-rules/bulk", {
+      method: "POST",
+      body: data,
     }),
 
   getExceptions: () =>
@@ -265,5 +297,18 @@ export const questionsApi = {
     api<{ question: Question }>(`/questions/${id}/reject`, {
       method: "PATCH",
       body: { reason },
+    }),
+
+  unreject: (id: string) =>
+    api<{ question: Question }>(`/questions/${id}/unreject`, {
+      method: "PATCH",
+    }),
+
+  messages: (id: string) => api<QuestionThread>(`/questions/${id}/messages`),
+
+  sendMessage: (id: string, body: string) =>
+    api<{ message: QuestionMessage; question: Question }>(`/questions/${id}/messages`, {
+      method: "POST",
+      body: { body },
     }),
 };

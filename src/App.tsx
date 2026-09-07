@@ -8,6 +8,7 @@ import SignUpPage from "@/pages/SignUp";
 import OnboardPage from "@/pages/Onboard";
 import DashboardPage from "@/pages/Dashboard";
 import QuestionsPage from "@/pages/Questions";
+import QuestionChatPage from "@/pages/QuestionChat";
 import BookingsPage from "@/pages/Bookings";
 import ProfilePage from "@/pages/Profile";
 import WebsitePage from "@/pages/Website";
@@ -53,6 +54,16 @@ export function App() {
               <AstrologerRoute>
                 <DashboardLayout>
                   <QuestionsPage />
+                </DashboardLayout>
+              </AstrologerRoute>
+            }
+          />
+          <Route
+            path="/questions/:id"
+            element={
+              <AstrologerRoute>
+                <DashboardLayout>
+                  <QuestionChatPage />
                 </DashboardLayout>
               </AstrologerRoute>
             }

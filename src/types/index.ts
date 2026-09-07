@@ -94,6 +94,21 @@ export interface Question {
   updatedAt: string;
   client?: User;
   astrologer?: { user: User; profile: AstrologerProfile };
+  lastMessage?: QuestionMessage | null;
+}
+
+export interface QuestionMessage {
+  id: string;
+  senderId: string;
+  senderRole: "Client" | "Astrologer";
+  body: string;
+  createdAt: string;
+  sender?: { id: string; name: string };
+}
+
+export interface QuestionThread {
+  question: Question;
+  messages: QuestionMessage[];
 }
 
 export interface BookingCounts {

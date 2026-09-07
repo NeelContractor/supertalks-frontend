@@ -58,6 +58,43 @@ export default function ProfilePage() {
   const [excEnd, setExcEnd] = useState("");
   const [excReason, setExcReason] = useState("");
 
+  // Weekly default template
+  const [templateDays, setTemplateDays] = useState<number[]>([1, 2, 3, 4, 5]);
+  const [templateWindows, setTemplateWindows] = useState([
+    { startTime: "09:00", endTime: "13:00" },
+    { startTime: "14:00", endTime: "19:00" },
+  ]);
+  const [applyingTemplate, setApplyingTemplate] = useState(false);
+
+  const toggleTemplateDay = (day: number) => {
+    setTemplateDays((prev) =>
+      prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]
+    );
+  };
+
+  const updateWindow = (index: number, field: "startTime" | "endTime", value: string) => {
+    setTemplateWindows((prev) =>
+      prev.map((w, i) => (i === index ? { ...w, [field]: value } : w))
+    );
+  };
+
+  const handleApplyTemplate = async () => {
+    if (templateDays.length === 0) return;
+    setApplyingTemplate(true);
+    try {
+      const data = await astrologerApi.bulkSetAvailabilityRules({
+        daysOfWeek: templateDays,
+        windows: templateWindows,
+      });
+      setRules(data.rules);
+      toast.success("Default availability applied");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to apply default availability");
+    } finally {
+      setApplyingTemplate(false);
+    }
+  };
+
   const load = useCallback(async () => {
     try {
       const [profileData, rulesData, exceptionsData] = await Promise.all([
@@ -387,6 +424,87 @@ export default function ProfilePage() {
               )}
             </CardContent>
           </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Default Weekly Availability</CardTitle>
+              <CardDescription>
+                Pick days and time windows, then apply them in one go. Exceptions (see the
+                Exceptions tab) automatically override these rules for their date—they never clash.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label>Days</Label>
+                <div className="flex flex-wrap gap-2">
+                  {DAYS.map((day, i) => {
+                    const selected = templateDays.includes(i);
+                    return (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => toggleTemplateDay(i)}
+                        className={`rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
+                          selected
+                            ? "border-primary bg-primary text-primary-foreground"
+                            : "border-input text-muted-foreground hover:bg-accent"
+                        }`}
+                      >
+                        {day.slice(0, 3)}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Time Windows</Label>
+                {templateWindows.map((w, i) => (
+                  <div key={i} className="flex items-end gap-3">
+                    <div className="grid flex-1 grid-cols-2 gap-3">
+                      <div className="space-y-2">
+                        <Label htmlFor={`tw-start-${i}`}>Start Time</Label>
+                        <Input
+                          id={`tw-start-${i}`}
+                          type="time"
+                          value={w.startTime}
+                          onChange={(e) => updateWindow(i, "startTime", e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor={`tw-end-${i}`}>End Time</Label>
+                        <Input
+                          id={`tw-end-${i}`}
+                          type="time"
+                          value={w.endTime}
+                          onChange={(e) => updateWindow(i, "endTime", e.target.value)}
+                        />
+                      </div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setTemplateWindows((prev) => prev.filter((_, j) => j !== i))}
+                    >
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </div>
+                ))}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setTemplateWindows((prev) => [...prev, { startTime: "", endTime: "" }])}
+                >
+                  <Plus className="h-4 w-4" />
+                  Add Window
+                </Button>
+              </div>
+
+              <Button onClick={() => void handleApplyTemplate()} disabled={applyingTemplate || templateDays.length === 0}>
+                {applyingTemplate ? "Applying..." : "Apply to selected days"}
+              </Button>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* Exceptions Tab */}
@@ -394,8 +512,8 @@ export default function ProfilePage() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
-                <CardTitle>Exceptions</CardTitle>
-                <CardDescription>Block or adjust specific dates</CardDescription>
+<CardTitle>Exceptions</CardTitle>
+                  <CardDescription>Block or adjust specific dates. These override weekly rules for that date only.</CardDescription>
               </div>
               <Button size="sm" onClick={() => setExceptionDialog(true)}>
                 <Plus className="h-4 w-4" />
