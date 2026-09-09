@@ -23,6 +23,18 @@ import { Plus, Trash2 } from "lucide-react";
 
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
+function OverviewRow({ label, value }: { label: string; value?: string | number | null }) {
+  const hasValue = value !== undefined && value !== null && String(value).trim() !== "";
+  return (
+    <div className="flex items-start justify-between gap-4 border-b border-border py-2 last:border-0">
+      <span className="text-sm text-muted-foreground">{label}</span>
+      <span className="whitespace-pre-line text-right text-sm font-medium">
+        {hasValue ? String(value) : "—"}
+      </span>
+    </div>
+  );
+}
+
 export default function ProfilePage() {
   const { profile: initialProfile, refreshProfile } = useAuth();
   const [profile, setProfile] = useState<AstrologerProfile | null>(initialProfile);
@@ -43,6 +55,10 @@ export default function ProfilePage() {
   const [callPrice, setCallPrice] = useState("");
   const [slotDuration, setSlotDuration] = useState("30");
   const [bufferMinutes, setBufferMinutes] = useState("5");
+
+  // Edit/view mode toggles
+  const [bioEditing, setBioEditing] = useState(true);
+  const [pricingEditing, setPricingEditing] = useState(true);
 
   // Rule dialog
   const [ruleDialog, setRuleDialog] = useState(false);
@@ -115,6 +131,15 @@ export default function ProfilePage() {
       setCallPrice(String(p.callPricePerSlotPaise / 100));
       setSlotDuration(String(p.slotDurationMinutes));
       setBufferMinutes(String(p.bufferMinutes));
+
+      const hasBio =
+        !!p.bio?.trim() ||
+        p.specializations.length > 0 ||
+        p.languages.length > 0 ||
+        p.experienceYears != null;
+      const hasPricing = p.questionPricePaise > 0 || p.callPricePerSlotPaise > 0;
+      setBioEditing(!hasBio);
+      setPricingEditing(!hasPricing);
     } catch {
       toast.error("Failed to load profile");
     } finally {
@@ -140,6 +165,7 @@ export default function ProfilePage() {
         experienceYears: experienceYears ? parseInt(experienceYears, 10) : undefined,
       });
       setProfile(data.profile);
+      setBioEditing(false);
       await refreshProfile();
       toast.success("Profile updated");
     } catch (err: unknown) {
@@ -159,6 +185,7 @@ export default function ProfilePage() {
         bufferMinutes: parseInt(bufferMinutes, 10),
       });
       setProfile(data.profile);
+      setPricingEditing(false);
       await refreshProfile();
       toast.success("Pricing updated");
     } catch (err: unknown) {
@@ -254,10 +281,18 @@ export default function ProfilePage() {
         {/* Bio Tab */}
         <TabsContent value="bio">
           <Card>
-            <CardHeader>
-              <CardTitle>Personal Information</CardTitle>
-              <CardDescription>Tell clients about yourself</CardDescription>
+            <CardHeader className="flex flex-row items-start justify-between">
+              <div>
+                <CardTitle>Personal Information</CardTitle>
+                <CardDescription>Tell clients about yourself</CardDescription>
+              </div>
+              {!bioEditing ? (
+                <Button variant="outline" size="sm" onClick={() => setBioEditing(true)}>
+                  Edit
+                </Button>
+              ) : null}
             </CardHeader>
+            {bioEditing ? (
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="bio">Bio</Label>
@@ -307,16 +342,32 @@ export default function ProfilePage() {
                 {saving ? "Saving..." : "Save Changes"}
               </Button>
             </CardContent>
+            ) : (
+            <CardContent className="space-y-2">
+              <OverviewRow label="Bio" value={profile?.bio} />
+              <OverviewRow label="Specializations" value={profile?.specializations.join(", ")} />
+              <OverviewRow label="Languages" value={profile?.languages.join(", ")} />
+              <OverviewRow label="Years of Experience" value={profile?.experienceYears} />
+            </CardContent>
+            )}
           </Card>
         </TabsContent>
 
         {/* Pricing Tab */}
         <TabsContent value="pricing">
           <Card>
-            <CardHeader>
-              <CardTitle>Pricing</CardTitle>
-              <CardDescription>Set your consultation and question prices</CardDescription>
+            <CardHeader className="flex flex-row items-start justify-between">
+              <div>
+                <CardTitle>Pricing</CardTitle>
+                <CardDescription>Set your consultation and question prices</CardDescription>
+              </div>
+              {!pricingEditing ? (
+                <Button variant="outline" size="sm" onClick={() => setPricingEditing(true)}>
+                  Edit
+                </Button>
+              ) : null}
             </CardHeader>
+            {pricingEditing ? (
             <CardContent className="space-y-4">
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
@@ -377,6 +428,20 @@ export default function ProfilePage() {
                 {saving ? "Saving..." : "Save Pricing"}
               </Button>
             </CardContent>
+            ) : (
+            <CardContent className="space-y-2">
+              <OverviewRow
+                label="Question Price"
+                value={profile ? `₹${(profile.questionPricePaise / 100).toLocaleString("en-IN")}` : undefined}
+              />
+              <OverviewRow
+                label="Call Price per Slot"
+                value={profile ? `₹${(profile.callPricePerSlotPaise / 100).toLocaleString("en-IN")}` : undefined}
+              />
+              <OverviewRow label="Slot Duration" value={profile ? `${profile.slotDurationMinutes} min` : undefined} />
+              <OverviewRow label="Buffer Between Slots" value={profile ? `${profile.bufferMinutes} min` : undefined} />
+            </CardContent>
+            )}
           </Card>
         </TabsContent>
 

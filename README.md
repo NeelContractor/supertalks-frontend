@@ -99,8 +99,5 @@ The frontend talks to the backend at `http://localhost:3000` (`src/lib/api.ts`).
 > The `GET /bookings` and `GET /questions` list endpoints are paginated server-side via `limit` (default 10, max 100) and `offset` query params. Responses include a `total` and per-status `counts` object, used by the dashboard stats cards and the per-tab count badges. List pages use the shadcn pagination control to page through results.
 
 # TODO 
-- Chat window ui height should be full screen, it shouldn't expand as we chat.
-- there should be feature unreject the rejected question.
-- something the jwt token is expired, and the user is on the /profile page it shows fail to fetch data, ideally it should redirect to signin page, then showing this error.
-- Availability should have date as well. and a way to set a default availability setting user astrologer can set the same duration for xyz days for example i am a astrologer and i want to set my availability to 9:00 AM to 1:00 PM and and then 2:00 PM to 7:00 PM as default for Monday to Friday. i dont want to manully setup my availability everyday. add this feature. and someway Availability and Exceptions shouldn't clash.
-- on public-site input box and send button is not aligned correctly on the /my/questions route
+- make the chat window a bit widther on the admin side and client side
+- make the sections section toggle able on customize tab

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { questionsApi } from "@/lib/api";
+import { connectQuestionSocket } from "@/lib/ws";
 import type { Question, QuestionMessage as ChatMessage } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,7 +10,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Send, ArrowLeft } from "lucide-react";
 
-const POLL_MS = 4000;
 // Astrologers can only reply once the client has paid for a message.
 const TALKABLE = ["Queued", "Answered"];
 
@@ -22,10 +22,24 @@ export default function QuestionChatPage() {
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
+  const seenIds = useRef<Set<string>>(new Set());
+
+  const setStatus = (status: string) => {
+    setQuestion((current) =>
+      current && current.id === id ? { ...current, status } : current
+    );
+  };
+
+  const upsertMessage = (message: ChatMessage) => {
+    if (seenIds.current.has(message.id)) return;
+    seenIds.current.add(message.id);
+    setMessages((prev) => [...prev, message]);
+  };
 
   const load = async () => {
     try {
       const data = await questionsApi.messages(id);
+      seenIds.current = new Set(data.messages.map((m) => m.id));
       setMessages(data.messages);
       setQuestion((current) =>
         current && current.id === data.question.id
@@ -41,13 +55,16 @@ export default function QuestionChatPage() {
 
   useEffect(() => {
     void load();
-    const interval = setInterval(() => {
-      questionsApi
-        .messages(id)
-        .then((data) => setMessages(data.messages))
-        .catch(() => {});
-    }, POLL_MS);
-    return () => clearInterval(interval);
+
+    const disconnect = connectQuestionSocket(id, {
+      onMessage: ({ message, question }) => {
+        upsertMessage(message);
+        setStatus(question.status);
+      },
+      onQuestionUpdate: ({ status }) => setStatus(status),
+    });
+
+    return () => disconnect();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
@@ -64,7 +81,7 @@ export default function QuestionChatPage() {
     setSending(true);
     try {
       const { message, question: updated } = await questionsApi.sendMessage(question.id, draft.trim());
-      setMessages((prev) => [...prev, message]);
+      upsertMessage(message);
       setQuestion((current) => (current && current.id === updated.id ? { ...current, status: updated.status } : current));
       setDraft("");
     } catch (err: unknown) {

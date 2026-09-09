@@ -193,12 +193,22 @@ export interface WebsiteTemplate {
   isActive: boolean;
 }
 
+export interface FieldStyle {
+  fontSize?: string;
+  color?: string;
+  fontFamily?: string;
+  fontWeight?: string;
+  fontStyle?: string;
+  textTransform?: string;
+}
+
 export interface SiteSectionDoc {
   id: string;
   type: string;
   name: string;
   default: boolean;
   props: Record<string, unknown>;
+  fieldStyles?: Record<string, FieldStyle>;
 }
 
 export interface SiteDocument {
@@ -208,7 +218,7 @@ export interface SiteDocument {
 
 export interface StoredTemplateData {
   design: Record<string, string | number>;
-  sections: Record<string, { props: Record<string, unknown> }>;
+  sections: Record<string, { props: Record<string, unknown>; fieldStyles?: Record<string, FieldStyle> }>;
 }
 
 export interface MySite {

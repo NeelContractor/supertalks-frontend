@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { astrologerApi, templatesApi } from "@/lib/api";
 import type {
+  FieldStyle,
   MySite,
   SiteDocument,
   SiteSectionDoc,
@@ -17,6 +18,7 @@ import {
   Select,
   SelectContent,
   SelectItem,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -30,7 +32,12 @@ import {
   Tablet,
   Trash2,
   LayoutTemplate,
-} from "lucide-react";
+  Undo2,
+  Redo2,
+  RotateCcw,
+  Check,
+  SquareArrowOutUpRight
+} from "lucide-react"; 
 
 const SITE_ORIGIN = "http://localhost:3002";
 
@@ -40,11 +47,129 @@ const DEVICES = {
   mobile: { label: "Mobile", width: "390px", Icon: Smartphone },
 } as const;
 
+// Sections that can never be removed from a live site.
+const ESSENTIAL_SECTIONS = new Set(["book", "question"]);
+
+// Human-friendly labels for otherwise cryptic template field keys.
+const FIELD_LABELS: Record<string, string> = {
+  siteName: "Site Name",
+  ctaLabel: "Button Text",
+  ctaLink: "Button Link",
+  logoAlt: "Logo Alt Text",
+  imageAlt: "Image Alt Text",
+  buttonLabel: "Button Text",
+  eyebrow: "Eyebrow",
+  quote: "Quote",
+  heading: "Heading",
+  subtitle: "Subtitle",
+  body: "Description",
+  question: "Question",
+  answer: "Answer",
+  title: "Title",
+  icon: "Icon",
+};
+
+function labelFor(key: string): string {
+  const mapped = FIELD_LABELS[key];
+  if (mapped) return mapped;
+  return key
+    .replace(/([A-Z])/g, " $1")
+    .replace(/^./, (c) => c.toUpperCase())
+    .trim();
+}
+
+const GOOGLE_FONTS = [
+  "Inter", "Roboto", "Open Sans", "Lato", "Montserrat", "Poppins",
+  "Source Sans 3", "Nunito", "Raleway", "Work Sans", "Quicksand",
+  "Rubik", "DM Sans", "Outfit", "Manrope", "Plus Jakarta Sans",
+  "Playfair Display", "Merriweather", "Lora", "PT Serif", "Libre Baskerville",
+  "Crimson Text", "EB Garamond", "Cormorant Garamond", "Domine", "Spectral",
+  "Oswald", "Bebas Neue", "Anton", "Archivo", "Figtree", "Sora", "Space Grotesk",
+  "Urbanist", "Albert Sans", "Karla", "Mulish", "Prompt", "Sarabun", "Fira Sans",
+  "IBM Plex Sans", "Comfortaa", "Jost", "Cabin", "Hind", "Public Sans", "Josefin Sans",
+];
+
+const SIZE_PRESETS = [
+  "12px", "13px", "14px", "15px", "16px", "18px", "20px",
+  "22px", "24px", "28px", "32px", "36px", "40px", "44px",
+  "48px", "56px", "64px", "72px",
+];
+
+const PALETTES = [
+  {
+    name: "Cream",
+    panelColor: "#F2DCCF",
+    primaryColor: "#232323",
+    darkColor: "#33312E",
+    backgroundColor: "#FAF3E8",
+    swatchLabel: ["Peach", "Black", "Charcoal", "White"],
+  },
+  {
+    name: "Ocean",
+    panelColor: "#C9DFEA",
+    primaryColor: "#24415E",
+    darkColor: "#12202E",
+    backgroundColor: "#EBF3F7",
+    swatchLabel: ["Blue", "Navy", "Dark navy", "White"],
+  },
+  {
+    name: "Sage",
+    panelColor: "#D5E3C4",
+    primaryColor: "#33492B",
+    darkColor: "#1E2A18",
+    backgroundColor: "#EFF4E8",
+    swatchLabel: ["Sage", "Dark green", "Forest", "White"],
+  },
+  {
+    name: "Blush",
+    panelColor: "#F3D8D3",
+    primaryColor: "#771609",
+    darkColor: "#253039",
+    backgroundColor: "#FBF2F0",
+    swatchLabel: ["Dusty rose", "Maroon", "Maroon dark", "White"],
+  },
+];
+
 type Device = keyof typeof DEVICES;
 
 type ParentMsg =
   | { type: "supertalks:site-data"; site: SiteDocument }
-  | { type: "supertalks:select"; sectionId: string | null };
+  | { type: "supertalks:select"; sectionId: string | null; fieldKey?: string | null };
+
+function setValueAtPath(target: unknown, path: string, value: unknown): unknown {
+  const [head, ...rest] = path.split(".");
+  if (!head) return target;
+  if (rest.length === 0) {
+    if (Array.isArray(target)) {
+      const arr = [...target];
+      arr[Number(head)] = value;
+      return arr;
+    }
+    return { ...((target as Record<string, unknown>) ?? {}), [head]: value };
+  }
+  if (Array.isArray(target)) {
+    const arr = [...target];
+    arr[Number(head)] = setValueAtPath(arr[Number(head)], rest.join("."), value);
+    return arr;
+  }
+  return {
+    ...((target as Record<string, unknown>) ?? {}),
+    [head]: setValueAtPath(
+      (target as Record<string, unknown> | undefined)?.[head],
+      rest.join("."),
+      value,
+    ),
+  };
+}
+
+function getValueAtPath(target: unknown, path: string): unknown {
+  let cur = target;
+  for (const part of path.split(".")) {
+    if (cur == null) return undefined;
+    cur = (cur as Record<string, unknown>)[part];
+  }
+  return cur;
+}
 
 function fieldDefault(field: TemplateField): unknown {
   if (field.type === "array") {
@@ -83,7 +208,15 @@ function toStored(site: SiteDocument): StoredTemplateData {
   return {
     design: site.design,
     sections: Object.fromEntries(
-      site.sections.map((s) => [s.id, { props: s.props }]),
+      site.sections.map((s) => [
+        s.id,
+        {
+          props: s.props,
+          ...(s.fieldStyles && Object.keys(s.fieldStyles).length > 0
+            ? { fieldStyles: s.fieldStyles }
+            : {}),
+        },
+      ]),
     ),
   };
 }
@@ -96,12 +229,15 @@ export default function WebsitePage() {
   const [schema, setSchema] = useState<TemplateSchema | null>(null);
   const [site, setSite] = useState<SiteDocument | null>(null);
   const [selected, setSelected] = useState<string>("design");
+  const [activeFieldKey, setActiveFieldKey] = useState<string | null>(null);
   const [templates, setTemplates] = useState<WebsiteTemplate[]>([]);
   const [device, setDevice] = useState<Device>("desktop");
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [savedAt, setSavedAt] = useState<Date | null>(null);
   const [iframeKey, setIframeKey] = useState(0);
+  const [history, setHistory] = useState<SiteDocument[]>([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
 
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const readyRef = useRef(false);
@@ -152,7 +288,13 @@ export default function WebsitePage() {
   useEffect(() => {
     const onMessage = (event: MessageEvent) => {
       if (event.origin !== SITE_ORIGIN) return;
-      const msg = event.data as { type?: string; sectionId?: string } | null;
+      const msg = event.data as {
+        type?: string;
+        sectionId?: string;
+        fieldKey?: string;
+        value?: string;
+        style?: FieldStyle | null;
+      } | null;
       if (!msg || typeof msg !== "object") return;
       if (msg.type === "supertalks:ready") {
         readyRef.current = true;
@@ -160,6 +302,12 @@ export default function WebsitePage() {
         post({ type: "supertalks:select", sectionId: selectedRef.current });
       } else if (msg.type === "supertalks:select") {
         setSelected(msg.sectionId ?? "design");
+        setActiveFieldKey(msg.sectionId ? (msg.fieldKey ?? null) : null);
+      } else if (msg.type === "supertalks:edit") {
+        if (!msg.sectionId || !msg.fieldKey) return;
+        patchFieldFromPreview(msg.sectionId, msg.fieldKey, msg.value, msg.style);
+        setSelected(msg.sectionId);
+        setActiveFieldKey(msg.fieldKey);
       }
     };
     window.addEventListener("message", onMessage);
@@ -172,19 +320,104 @@ export default function WebsitePage() {
   }, [site, post]);
 
   useEffect(() => {
-    post({ type: "supertalks:select", sectionId: selected });
-  }, [selected, post]);
+    post({
+      type: "supertalks:select",
+      sectionId: selected,
+      fieldKey: activeFieldKey,
+    });
+  }, [selected, activeFieldKey, post]);
 
   const markDirty = useCallback(() => setDirty(true), []);
 
+  const lastHistoryRef = useRef<string>("");
+  const historyLockRef = useRef(false);
+
+  // Record the current site state into the undo stack before a mutation.
+  const commitHistory = useCallback((s: SiteDocument) => {
+    const key = JSON.stringify(s);
+    if (historyLockRef.current) return;
+    if (key === lastHistoryRef.current) return;
+    lastHistoryRef.current = key;
+    setHistory((h) => [...h.slice(0, historyIndex + 1), s]);
+    setHistoryIndex((i) => i + 1);
+  }, [historyIndex]);
+
+  // Rapid edits from the click-to-edit preview shouldn't flood the undo stack.
+  const lastFieldEditRef = useRef(0);
+  const commitBeforeFieldEdit = useCallback(
+    (s: SiteDocument) => {
+      const now = Date.now();
+      if (now - lastFieldEditRef.current > 800) commitHistory(s);
+      lastFieldEditRef.current = now;
+    },
+    [commitHistory],
+  );
+
+  // Apply edits that originate from clicking elements in the preview iframe.
+  const patchFieldFromPreview = (
+    sectionId: string,
+    fieldKey: string,
+    value?: string,
+    style?: FieldStyle | null,
+  ) => {
+    setSite((s) => {
+      if (!s) return s;
+      commitBeforeFieldEdit(s);
+      return {
+        ...s,
+        sections: s.sections.map((sec) => {
+          if (sec.id !== sectionId) return sec;
+          let next: SiteSectionDoc = sec;
+          if (value !== undefined) {
+            next = {
+              ...next,
+              props: setValueAtPath(next.props, fieldKey, value) as Record<string, unknown>,
+            };
+          }
+          if (style !== undefined) {
+            const fieldStyles = { ...(next.fieldStyles ?? {}) };
+            if (style === null) delete fieldStyles[fieldKey];
+            else fieldStyles[fieldKey] = style;
+            next = { ...next, fieldStyles };
+          }
+          return next;
+        }),
+      };
+    });
+    markDirty();
+  };
+
   const patchDesign = (key: string, value: string | number) => {
-    setSite((s) => (s ? { ...s, design: { ...s.design, [key]: value } } : s));
+    setSite((s) => {
+      if (s) commitHistory(s);
+      return s ? { ...s, design: { ...s.design, [key]: value } } : s;
+    });
+    markDirty();
+  };
+
+  const applyPalette = (palette: (typeof PALETTES)[number]) => {
+    setSite((s) => {
+      if (s) commitHistory(s);
+      return s
+        ? {
+            ...s,
+            design: {
+              ...s.design,
+              panelColor: palette.panelColor,
+              primaryColor: palette.primaryColor,
+              darkColor: palette.darkColor,
+              backgroundColor: palette.backgroundColor,
+            },
+          }
+        : s;
+    });
     markDirty();
   };
 
   const patchSectionProp = (sectionId: string, key: string, value: unknown) => {
-    setSite((s) =>
-      s
+    setSite((s) => {
+      if (s) commitHistory(s);
+      return s
         ? {
             ...s,
             sections: s.sections.map((sec) =>
@@ -193,8 +426,8 @@ export default function WebsitePage() {
                 : sec,
             ),
           }
-        : s,
-    );
+        : s;
+    });
     markDirty();
   };
 
@@ -205,8 +438,9 @@ export default function WebsitePage() {
     itemKey: string,
     value: unknown,
   ) => {
-    setSite((s) =>
-      s
+    setSite((s) => {
+      if (s) commitHistory(s);
+      return s
         ? {
             ...s,
             sections: s.sections.map((sec) => {
@@ -225,13 +459,14 @@ export default function WebsitePage() {
               };
             }),
           }
-        : s,
-    );
+        : s;
+    });
     markDirty();
   };
 
   const addArrayItem = (sectionId: string, fieldKey: string) => {
     setSite((s) => {
+      if (s) commitHistory(s);
       if (!s) return s;
       const section = s.sections.find((sec) => sec.id === sectionId);
       const field = schema?.sections.find((f) => f.id === sectionId)?.props[fieldKey];
@@ -258,8 +493,9 @@ export default function WebsitePage() {
   };
 
   const removeArrayItem = (sectionId: string, fieldKey: string, index: number) => {
-    setSite((s) =>
-      s
+    setSite((s) => {
+      if (s) commitHistory(s);
+      return s
         ? {
             ...s,
             sections: s.sections.map((sec) => {
@@ -276,8 +512,86 @@ export default function WebsitePage() {
               };
             }),
           }
-        : s,
+        : s;
+    });
+    markDirty();
+  };
+
+  const removeSection = (sectionId: string) => {
+    if (ESSENTIAL_SECTIONS.has(sectionId)) return;
+    setSite((s) => {
+      if (!s) return s;
+      const removed = s.sections.find((sec) => sec.id === sectionId);
+      if (!removed) return s;
+      commitHistory(s);
+      return { ...s, sections: s.sections.filter((sec) => sec.id !== sectionId) };
+    });
+    setSelected((sel) => (sel === sectionId ? "design" : sel));
+    setActiveFieldKey((k) => (k && selected === sectionId ? null : k));
+    markDirty();
+  };
+
+  // Add a section back that exists in the schema but is not currently on the site.
+  const addSection = (sectionField: TemplateSchema["sections"][number]) => {
+    setSite((s) => {
+      if (!s) return s;
+      if (s.sections.some((sec) => sec.id === sectionField.id)) return s;
+      commitHistory(s);
+      return {
+        ...s,
+        sections: [...s.sections, {
+          id: sectionField.id,
+          type: sectionField.type,
+          name: sectionField.name,
+          default: sectionField.default,
+          props: defaultsOf(sectionField.props),
+        }],
+      };
+    });
+    markDirty();
+  };
+
+  const undo = () => {
+    if (historyIndex < 0 || !site) return;
+    const prev = history[historyIndex];
+    if (!prev) return;
+    historyLockRef.current = true;
+    lastHistoryRef.current = "";
+    setSite(prev);
+    setHistoryIndex((i) => i - 1);
+    setSelected((sel) =>
+      prev.sections.some((sec) => sec.id === sel) ? sel : "design",
     );
+    markDirty();
+    // Release the lock on the next tick so subsequent edits record again.
+    setTimeout(() => {
+      historyLockRef.current = false;
+    }, 0);
+  };
+
+  const redo = () => {
+    if (historyIndex >= history.length - 1 || !site) return;
+    const next = history[historyIndex + 1];
+    if (!next) return;
+    historyLockRef.current = true;
+    lastHistoryRef.current = "";
+    setSite(next);
+    setHistoryIndex((i) => i + 1);
+    setSelected((sel) =>
+      next.sections.some((sec) => sec.id === sel) ? sel : "design",
+    );
+    markDirty();
+    setTimeout(() => {
+      historyLockRef.current = false;
+    }, 0);
+  };
+
+  const resetAll = () => {
+    if (!schema || !site) return;
+    commitHistory(site);
+    setSite(docFromSchema(schema));
+    setSelected("design");
+    setActiveFieldKey(null);
     markDirty();
   };
 
@@ -287,6 +601,10 @@ export default function WebsitePage() {
     setSchema(template.schema);
     setSite(docFromSchema(template.schema));
     setSelected("design");
+    setActiveFieldKey(null);
+    setHistory([]);
+    setHistoryIndex(-1);
+    lastHistoryRef.current = "";
     markDirty();
     reloadPreview();
   };
@@ -331,12 +649,15 @@ export default function WebsitePage() {
   const selectedSection = selected === "design"
     ? null
     : site.sections.find((sec) => sec.id === selected) ?? null;
+  const availableSections = schema.sections.filter(
+    (f) => !site.sections.some((sec) => sec.id === f.id),
+  );
 
   return (
-    <div className="flex h-[calc(100vh-6.5rem)] flex-col gap-3">
+    <div className="flex flex-col gap-3 lg:h-[calc(100vh-6.5rem)]">
       {/* Toolbar */}
-      <div className="flex items-center justify-between gap-2 rounded-lg border bg-background px-3 py-2">
-        <div className="flex min-w-0 items-center gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-background px-3 py-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
           <LayoutTemplate className="h-4 w-4 shrink-0 text-muted-foreground" />
           {templates.length > 0 ? (
             <Select value={templateId} onValueChange={(id) => {
@@ -366,7 +687,7 @@ export default function WebsitePage() {
           )}
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex min-w-0 flex-wrap items-center justify-end gap-3">
           <div className="flex items-center gap-1 rounded-md border p-0.5">
             {(
               Object.keys(DEVICES) as Device[]
@@ -392,14 +713,42 @@ export default function WebsitePage() {
           <span className="hidden text-xs text-muted-foreground sm:inline">
             {dirty ? "Unsaved changes" : savedAt ? `Saved ${savedAt.toLocaleTimeString()}` : "No changes"}
           </span>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              title="Undo"
+              onClick={undo}
+              disabled={historyIndex < 0}
+              className="flex h-7 w-7 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent disabled:pointer-events-none disabled:opacity-40"
+            >
+              <Undo2 className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              title="Redo"
+              onClick={redo}
+              disabled={historyIndex >= history.length - 1}
+              className="flex h-7 w-7 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent disabled:pointer-events-none disabled:opacity-40"
+            >
+              <Redo2 className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              title="Reset to defaults"
+              onClick={resetAll}
+              className="flex h-7 w-7 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent"
+            >
+              <RotateCcw className="h-4 w-4" />
+            </button>
+          </div>
           <Button
             variant="outline"
             size="sm"
             className="h-8 gap-1.5"
             onClick={() => window.open(`${SITE_ORIGIN}/${slug}`, "_blank")}
           >
-            <Eye className="h-4 w-4" />
-            View Site
+            <SquareArrowOutUpRight className="h-4 w-4" />
+            Open in new tab
           </Button>
           <Button size="sm" className="h-8 gap-1.5" onClick={handleSave} disabled={saving || !dirty}>
             <Save className="h-4 w-4" />
@@ -409,14 +758,17 @@ export default function WebsitePage() {
       </div>
 
       {/* Main 3-pane layout */}
-      <div className="grid min-h-0 flex-1 grid-cols-[200px_1fr_300px] gap-3">
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-[200px_minmax(0,1fr)_300px]">
         {/* Sections list */}
-        <aside className="min-h-0 overflow-y-auto rounded-lg border bg-background p-2">
+        <aside className="max-h-44 min-h-0 overflow-y-auto rounded-lg border bg-background p-2 lg:max-h-none">
           <SectionNavItem
             active={selected === "design"}
             label="Site Design"
             highlight
-            onClick={() => setSelected("design")}
+            onClick={() => {
+              setSelected("design");
+              setActiveFieldKey(null);
+            }}
           />
           <div className="my-2 h-px bg-border" />
           <div className="mb-1 px-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -427,13 +779,38 @@ export default function WebsitePage() {
               key={section.id}
               active={selected === section.id}
               label={section.name}
-              onClick={() => setSelected(section.id)}
+              onClick={() => {
+                setSelected(section.id);
+                setActiveFieldKey(null);
+              }}
+              removable={!ESSENTIAL_SECTIONS.has(section.id)}
+              onRemove={() => removeSection(section.id)}
             />
           ))}
+          {availableSections.length > 0 && (
+            <div className="mt-2 border-t pt-2">
+              <div className="mb-1 px-2 text-xs font-medium text-muted-foreground">
+                Add Section
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {availableSections.map((sec) => (
+                  <button
+                    key={sec.id}
+                    type="button"
+                    onClick={() => addSection(sec)}
+                    className="flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                  >
+                    <Plus className="h-3 w-3" />
+                    {sec.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </aside>
 
         {/* Preview */}
-        <main className="relative min-h-0 overflow-auto rounded-lg border bg-muted/50 p-3">
+        <main className="relative h-[440px] min-h-0 overflow-auto rounded-lg border bg-muted/50 p-3 lg:h-auto">
           <div
             className="mx-auto overflow-hidden rounded border bg-white shadow-sm transition-all"
             style={{ width: deviceInfo.width, maxWidth: "100%", height: "100%" }}
@@ -449,25 +826,47 @@ export default function WebsitePage() {
         </main>
 
         {/* Property panel */}
-        <aside className="min-h-0 overflow-y-auto rounded-lg border bg-background p-4">
+        <aside className="min-h-0 overflow-y-auto rounded-lg border bg-background p-4 lg:max-h-none">
           <h2 className="mb-3 text-sm font-semibold">
             {selected === "design"
               ? "Site Design"
               : selectedSection?.name ?? "Properties"}
           </h2>
           {selected === "design" ? (
-            <DesignTokens values={site.design} onPatch={patchDesign} />
-          ) : selectedSection ? (
-            <SectionPanel
-              section={selectedSection}
-              sectionField={schema.sections.find((f) => f.id === selectedSection.id)}
-              onPatch={(key, value) => patchSectionProp(selectedSection.id, key, value)}
-              onItemField={(field, index, key, value) =>
-                updateItemField(selectedSection.id, field, index, key, value)
-              }
-              onAddItem={(field) => addArrayItem(selectedSection.id, field)}
-              onRemoveItem={(field, index) => removeArrayItem(selectedSection.id, field, index)}
+            <DesignTokens
+              values={site.design}
+              onPatch={patchDesign}
+              onApplyPalette={applyPalette}
             />
+          ) : selectedSection ? (
+            <>
+              {activeFieldKey ? (
+                <ElementStylePanel
+                  section={selectedSection}
+                  fieldKey={activeFieldKey}
+                  value={getValueAtPath(selectedSection.props, activeFieldKey)}
+                  onValue={(v) => patchFieldFromPreview(selectedSection.id, activeFieldKey, v)}
+                  onStyle={(style) => patchFieldFromPreview(selectedSection.id, activeFieldKey, undefined, style)}
+                  onClear={() => patchFieldFromPreview(selectedSection.id, activeFieldKey, undefined, null)}
+                />
+              ) : null}
+              <SectionPanel
+                key={selectedSection.id}
+                section={selectedSection}
+                sectionField={schema.sections.find((f) => f.id === selectedSection.id)}
+                activeFieldKey={activeFieldKey}
+                onPatch={(key, value) => {
+                  setActiveFieldKey(null);
+                  patchSectionProp(selectedSection.id, key, value);
+                }}
+                onItemField={(field, index, key, value) => {
+                  setActiveFieldKey(null);
+                  updateItemField(selectedSection.id, field, index, key, value);
+                }}
+                onAddItem={(field) => addArrayItem(selectedSection.id, field)}
+                onRemoveItem={(field, index) => removeArrayItem(selectedSection.id, field, index)}
+              />
+            </>
           ) : null}
         </aside>
       </div>
@@ -479,34 +878,259 @@ function SectionNavItem({
   active,
   label,
   highlight,
+  removable,
+  onRemove,
   onClick,
 }: {
   active: boolean;
   label: string;
   highlight?: boolean;
+  removable?: boolean;
+  onRemove?: () => void;
   onClick: () => void;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors ${
+    <div
+      className={`group flex w-full items-center rounded-md transition-colors ${
         active
           ? "bg-primary text-primary-foreground"
           : "text-muted-foreground hover:bg-accent"
       }`}
     >
-      {highlight ? <span className="h-2 w-2 rounded-full bg-current" /> : null}
-      <span className="truncate">{label}</span>
-    </button>
+      <button
+        type="button"
+        onClick={onClick}
+        className="flex min-w-0 flex-1 items-center gap-2 px-2 py-1.5 text-left text-sm"
+      >
+        {highlight ? <span className="h-2 w-2 shrink-0 rounded-full bg-current" /> : null}
+        <span className="truncate">{label}</span>
+      </button>
+      {removable ? (
+        <button
+          type="button"
+          title={`Remove ${label}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemove?.();
+          }}
+          className="mr-1 flex h-6 w-6 shrink-0 items-center justify-center rounded opacity-0 transition-opacity hover:bg-black/10 group-hover:opacity-100"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
+      ) : null}
+    </div>
   );
 }
 
 // ---- Panels ----
 
+function ElementStylePanel({
+  section,
+  fieldKey,
+  value,
+  onValue,
+  onStyle,
+  onClear,
+}: {
+  section: SiteSectionDoc;
+  fieldKey: string;
+  value: unknown;
+  onValue: (value: string) => void;
+  onStyle: (style: FieldStyle | null) => void;
+  onClear: () => void;
+}) {
+  const style = section.fieldStyles?.[fieldKey] ?? {};
+  const label = labelFor(fieldKey.split(".").pop() ?? fieldKey);
+  const textValue = value != null ? String(value) : "";
+  const colorValue = style.color ?? "";
+  return (
+    <div className="mb-4 rounded-lg border border-primary/30 bg-muted/40 p-3">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5 text-sm font-semibold">
+          <span className="h-2 w-2 rounded-full bg-primary" />
+          <span className="capitalize">
+            {typeof label === "string" ? label.trim().toLowerCase() : label}
+          </span>
+        </div>
+        <Button variant="ghost" size="icon-sm" type="button" onClick={onClear}>
+          <RotateCcw className="h-3.5 w-3.5" />
+        </Button>
+      </div>
+      <div className="space-y-2">
+        <div className="space-y-1">
+          <Label className="text-xs">Text</Label>
+          <Input
+            type="text"
+            value={textValue}
+            onChange={(e) => onValue(e.target.value)}
+          />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">Font size</Label>
+          <div className="flex items-center gap-2">
+            <Select
+              value={
+                style.fontSize &&
+                SIZE_PRESETS.includes(style.fontSize)
+                  ? style.fontSize
+                  : "inherit"
+              }
+              onValueChange={(v) =>
+                onStyle({ ...style, fontSize: v === "inherit" ? "" : v })
+              }
+            >
+              <SelectTrigger className="flex-1">
+                <SelectValue placeholder="Default" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="inherit">Default</SelectItem>
+                {SIZE_PRESETS.map((size) => (
+                  <SelectItem key={size} value={size}>
+                    {size}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Input
+              type="text"
+              className="w-20"
+              placeholder="Custom"
+              value={style.fontSize ?? ""}
+              onChange={(e) => onStyle({ ...style, fontSize: e.target.value })}
+            />
+          </div>
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">Font family</Label>
+          <Select
+            value={style.fontFamily ?? "inherit"}
+            onValueChange={(v) =>
+              onStyle({ ...style, fontFamily: v === "inherit" ? "" : v })
+            }
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Default" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="inherit">Default</SelectItem>
+              <SelectItem value="serif">Serif</SelectItem>
+              <SelectItem value="sans">Sans</SelectItem>
+              <SelectSeparator />
+              {GOOGLE_FONTS.map((font) => (
+                <SelectItem key={font} value={font} style={{ fontFamily: font }}>
+                  {font}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">Text color</Label>
+          <div className="flex items-center gap-2">
+            <Input
+              type="color"
+              className="h-9 w-12 p-1"
+              value={/^#[0-9a-fA-F]{6}$/.test(colorValue) ? colorValue : "#771609"}
+              onChange={(e) => onStyle({ ...style, color: e.target.value })}
+            />
+            <Input
+              type="text"
+              value={colorValue}
+              onChange={(e) => onStyle({ ...style, color: e.target.value })}
+            />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-1">
+            <Label className="text-xs">Weight</Label>
+            <Select
+              value={style.fontWeight ?? "inherit"}
+              onValueChange={(v) =>
+                onStyle({ ...style, fontWeight: v === "inherit" ? "" : v })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Default" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="inherit">Default</SelectItem>
+                <SelectItem value="400">Normal</SelectItem>
+                <SelectItem value="500">Medium</SelectItem>
+                <SelectItem value="600">Semibold</SelectItem>
+                <SelectItem value="700">Bold</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Style</Label>
+            <Select
+              value={style.fontStyle ?? "inherit"}
+              onValueChange={(v) =>
+                onStyle({ ...style, fontStyle: v === "inherit" ? "" : v })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Default" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="inherit">Default</SelectItem>
+                <SelectItem value="italic">Italic</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">Text case</Label>
+          <Select
+            value={style.textTransform ?? "inherit"}
+            onValueChange={(v) =>
+              onStyle({ ...style, textTransform: v === "inherit" ? "" : v })
+            }
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Default" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="inherit">Default</SelectItem>
+              <SelectItem value="none">None</SelectItem>
+              <SelectItem value="uppercase">UPPERCASE</SelectItem>
+              <SelectItem value="lowercase">lowercase</SelectItem>
+              <SelectItem value="capitalize">Title Case</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <p className="pt-1 text-xs text-muted-foreground">
+          Changes apply to "{fieldKey}" element on the page.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+const FIELD_GROUPS = ["Content", "Layout", "Image", "Style"] as const;
+type FieldGroupName = (typeof FIELD_GROUPS)[number];
+
+function fieldGroupName(fieldKey: string, field: TemplateField): FieldGroupName {
+  if (field.type === "image") return "Image";
+  if (field.type === "color") return "Style";
+  const key = fieldKey.toLowerCase();
+  const layoutKeys = [
+    "align", "height", "width", "layout", "position", "size",
+    "direction", "gap", "spacing", "columns", "reverse", "order", "variant",
+  ];
+  if (layoutKeys.some((s) => key.includes(s))) return "Layout";
+  return "Content";
+}
+
+function pluralLabel(field: TemplateField, fieldKey: string): string {
+  const name = field.itemName || fieldKey;
+  return `${name}s`;
+}
+
 function SectionPanel({
   section,
   sectionField,
+  activeFieldKey,
   onPatch,
   onItemField,
   onAddItem,
@@ -514,27 +1138,103 @@ function SectionPanel({
 }: {
   section: SiteSectionDoc;
   sectionField: { id: string; props: Record<string, TemplateField> } | undefined;
+  activeFieldKey?: string | null;
   onPatch: (key: string, value: unknown) => void;
   onItemField: (field: string, index: number, key: string, value: unknown) => void;
   onAddItem: (field: string) => void;
   onRemoveItem: (field: string, index: number) => void;
 }) {
+  const [tab, setTab] = useState<FieldGroupName>("Content");
+
+  const entries = useMemo(
+    () => (sectionField ? Object.entries(sectionField.props) : []),
+    [sectionField],
+  );
+
+  const grouped = useMemo(() => {
+    const byGroup = new Map<FieldGroupName, { key: string; field: TemplateField }[]>();
+    for (const g of FIELD_GROUPS) byGroup.set(g, []);
+    for (const [key, field] of entries) byGroup.get(fieldGroupName(key, field))!.push({ key, field });
+    return byGroup;
+  }, [entries]);
+
+  const tabs = FIELD_GROUPS.filter((g) => (grouped.get(g)?.length ?? 0) > 0);
+  const currentTab = tabs.includes(tab) ? tab : (tabs[0] ?? "Content");
+
+  const groupsFor = useCallback(
+    (g: FieldGroupName) => {
+      const list = grouped.get(g) ?? [];
+      const groups: { label: string; entries: { key: string; field: TemplateField }[] }[] = [];
+      let scalar: { key: string; field: TemplateField }[] = [];
+      for (const item of list) {
+        if (item.field.type === "array") {
+          if (scalar.length) {
+            groups.push({ label: g === "Content" ? "Text" : g, entries: scalar });
+            scalar = [];
+          }
+          groups.push({ label: pluralLabel(item.field, item.key), entries: [item] });
+        } else {
+          scalar.push(item);
+        }
+      }
+      if (scalar.length) groups.push({ label: g === "Content" ? "Text" : g, entries: scalar });
+      return groups;
+    },
+    [grouped],
+  );
+
+  if (!sectionField) return null;
+
   return (
-    <div className="space-y-4">
-      {sectionField
-        ? Object.entries(sectionField.props).map(([key, field]) => (
-            <FieldControl
-              key={key}
-              fieldKey={key}
-              field={field}
-              value={section.props[key]}
-              onPatch={(v) => onPatch(key, v)}
-              onItemField={onItemField}
-              onAddItem={onAddItem}
-              onRemoveItem={onRemoveItem}
-            />
-          ))
-        : null}
+    <div className="space-y-3">
+      {tabs.length > 1 ? (
+        <div className="flex gap-1 rounded-lg bg-muted p-1">
+          {tabs.map((g) => (
+            <button
+              key={g}
+              type="button"
+              onClick={() => setTab(g)}
+              className={`flex-1 rounded-md px-2 py-1 text-xs font-medium capitalize transition-colors ${
+                currentTab === g
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {g}
+            </button>
+          ))}
+        </div>
+      ) : null}
+      {groupsFor(currentTab).map((grp, i) => (
+        <div key={i} className="space-y-3">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-foreground/60">
+            {grp.label} group
+          </p>
+          <div className="space-y-2">
+            {grp.entries.map(({ key, field }) => (
+              <div
+                key={key}
+                className={[
+                  "rounded-md transition-shadow",
+                  activeFieldKey && (activeFieldKey === key || activeFieldKey.startsWith(`${key}.`))
+                    ? "ring-2 ring-primary/40"
+                    : "",
+                ].join(" ")}
+              >
+                <FieldControl
+                  fieldKey={key}
+                  field={field}
+                  value={section.props[key]}
+                  onPatch={(v) => onPatch(key, v)}
+                  onItemField={onItemField}
+                  onAddItem={onAddItem}
+                  onRemoveItem={onRemoveItem}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -562,7 +1262,7 @@ function FieldControl({
     return (
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <Label className="capitalize">{fieldKey}</Label>
+          <Label>{labelFor(fieldKey)}</Label>
           <Button
             variant="outline"
             size="icon-sm"
@@ -591,7 +1291,7 @@ function FieldControl({
             </div>
             {Object.entries(itemProps).map(([itemKey, itemField]) => (
               <div key={itemKey} className="space-y-1.5">
-                <Label className="text-xs capitalize">{itemKey}</Label>
+                <Label className="text-xs">{labelFor(itemKey)}</Label>
                 {itemField.type === "textarea" ? (
                   <Textarea
                     rows={3}
@@ -629,13 +1329,21 @@ function FieldControl({
 
   return (
     <div className="space-y-1.5">
-      <Label className="capitalize">{fieldKey}</Label>
+      <Label>{labelFor(fieldKey)}</Label>
       {field.type === "textarea" ? (
-        <Textarea
-          rows={4}
-          value={typeof value === "string" ? value : (field.default as string) ?? ""}
-          onChange={(e) => onPatch(e.target.value)}
-        />
+        <div className="space-y-1">
+          <Textarea
+            rows={4}
+            value={typeof value === "string" ? value : (field.default as string) ?? ""}
+            onChange={(e) => onPatch(e.target.value)}
+          />
+          {typeof field.max === "number" ? (
+            <p className="text-right text-xs text-muted-foreground">
+              {String(typeof value === "string" ? value : (field.default as string) ?? "").length}/
+              {field.max}
+            </p>
+          ) : null}
+        </div>
       ) : field.type === "select" && field.options ? (
         <Select
           value={typeof value === "string" ? value : (field.default as string) ?? ""}
@@ -682,7 +1390,7 @@ function FieldControl({
       ) : (
         <Input
           type="text"
-          placeholder={fieldKey}
+          placeholder={labelFor(fieldKey)}
           value={typeof value === "string" ? value : (field.default as string) ?? ""}
           onChange={(e) => onPatch(e.target.value)}
         />
@@ -697,15 +1405,77 @@ function FieldControl({
 function DesignTokens({
   values,
   onPatch,
+  onApplyPalette,
 }: {
   values: Record<string, string | number>;
   onPatch: (key: string, value: string | number) => void;
+  onApplyPalette: (palette: (typeof PALETTES)[number]) => void;
 }) {
+  const design = {
+    panelColor: String(values.panelColor ?? ""),
+    primaryColor: String(values.primaryColor ?? ""),
+    darkColor: String(values.darkColor ?? ""),
+    backgroundColor: String(values.backgroundColor ?? ""),
+  };
+  const activePalette = PALETTES.find(
+    (pal) =>
+      pal.panelColor === design.panelColor &&
+      pal.primaryColor === design.primaryColor &&
+      pal.darkColor === design.darkColor &&
+      pal.backgroundColor === design.backgroundColor,
+  )?.name;
+
   return (
     <div className="space-y-4">
+      <div>
+        <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-foreground/60">
+          Start from a palette
+        </p>
+        <div className="grid grid-cols-4 gap-2">
+          {PALETTES.map((pal) => {
+            const selected = activePalette === pal.name;
+            return (
+              <button
+                key={pal.name}
+                type="button"
+                aria-label={`Apply ${pal.name} palette`}
+                title={pal.name}
+                onClick={() => onApplyPalette(pal)}
+                className={`relative overflow-hidden rounded-lg transition-all ${
+                  selected
+                    ? "ring-2 ring-blue-600 ring-offset-1"
+                    : "ring-1 ring-foreground/15 hover:ring-foreground/40"
+                }`}
+              >
+                <div className="h-10 w-full" style={{ backgroundColor: pal.backgroundColor }} />
+                <div className="flex h-6 w-full">
+                  {[
+                    pal.panelColor,
+                    pal.primaryColor,
+                    pal.darkColor,
+                    pal.backgroundColor,
+                  ].map((color, i) => (
+                    <span
+                      key={i}
+                      title={pal.swatchLabel[i]}
+                      className="h-full flex-1"
+                      style={{ backgroundColor: color }}
+                    />
+                  ))}
+                </div>
+                {selected && (
+                  <span className="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-blue-600 text-white">
+                    <Check className="h-3 w-3" strokeWidth={3} />
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
       {Object.entries(values).map(([key, value]) => (
         <div key={key} className="space-y-1.5">
-          <Label className="capitalize">{key}</Label>
+          <Label>{labelFor(key)}</Label>
           {key.toLowerCase().includes("font") ? (
             <Select value={String(value)} onValueChange={(v) => onPatch(key, v)}>
               <SelectTrigger>
@@ -714,6 +1484,12 @@ function DesignTokens({
               <SelectContent>
                 <SelectItem value="serif">Serif</SelectItem>
                 <SelectItem value="sans">Sans</SelectItem>
+                <SelectSeparator />
+                {GOOGLE_FONTS.map((font) => (
+                  <SelectItem key={font} value={font} style={{ fontFamily: font }}>
+                    {font}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           ) : key.toLowerCase().includes("color") ? (
