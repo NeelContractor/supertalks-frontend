@@ -1,31 +1,26 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { useAuth } from "@/contexts/auth";
-import { astrologerApi, bookingsApi, questionsApi } from "@/lib/api";
-import type { Booking, Question, AstrologerStats } from "@/types";
+import { useStore } from "@/store";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { HelpCircle, CalendarDays, IndianRupee, Clock } from "lucide-react";
 
 export default function DashboardPage() {
-  const { user, profile } = useAuth();
-  const [stats, setStats] = useState<AstrologerStats | null>(null);
-  const [bookings, setBookings] = useState<Booking[]>([]);
-  const [questions, setQuestions] = useState<Question[]>([]);
+  const user = useStore((s) => s.user);
+  const profile = useStore((s) => s.profile);
+  const stats = useStore((s) => s.stats);
+  const recentBookings = (useStore((s) => s.bookingPages["all:0"]?.items) ?? []).slice(0, 5);
+  const recentQuestions = (useStore((s) => s.questionPages["all:0"]?.items) ?? []).slice(0, 5);
+  const loadStats = useStore((s) => s.loadStats);
+  const loadBookings = useStore((s) => s.loadBookings);
+  const loadQuestions = useStore((s) => s.loadQuestions);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    Promise.all([
-      astrologerApi.getStats().catch(() => null),
-      bookingsApi.list(undefined, 5, 0).catch(() => null),
-      questionsApi.list(undefined, 5, 0).catch(() => null),
-    ]).then(([s, b, q]) => {
-      setStats(s);
-      setBookings(b?.bookings ?? []);
-      setQuestions(q?.questions ?? []);
-      setLoading(false);
-    });
-  }, []);
+    Promise.all([loadStats(), loadBookings("all", 0), loadQuestions("all", 0)]).finally(
+      () => setLoading(false),
+    );
+  }, [loadStats, loadBookings, loadQuestions]);
 
   const pendingQuestions = stats?.pendingQuestions ?? 0;
   const upcomingBookings = stats?.upcomingBookings ?? 0;
@@ -105,11 +100,11 @@ export default function DashboardPage() {
             </Link>
           </CardHeader>
           <CardContent>
-            {questions.length === 0 ? (
+            {recentQuestions.length === 0 ? (
               <p className="text-sm text-muted-foreground">No questions yet.</p>
             ) : (
               <div className="space-y-3">
-                {questions.map((q) => (
+                {recentQuestions.map((q) => (
                   <Link
                     key={q.id}
                     to={`/questions?id=${q.id}`}
@@ -149,11 +144,11 @@ export default function DashboardPage() {
             </Link>
           </CardHeader>
           <CardContent>
-            {bookings.length === 0 ? (
+            {recentBookings.length === 0 ? (
               <p className="text-sm text-muted-foreground">No bookings yet.</p>
             ) : (
               <div className="space-y-3">
-                {bookings.map((b) => (
+                {recentBookings.map((b) => (
                   <Link
                     key={b.id}
                     to={`/bookings?id=${b.id}`}

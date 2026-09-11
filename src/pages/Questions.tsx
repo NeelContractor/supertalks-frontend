@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { useStore } from "@/store";
 import { questionsApi } from "@/lib/api";
-import type { Question, QuestionCounts } from "@/types";
+import type { Question } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -35,29 +36,25 @@ const REJECTABLE_STATUSES = ["Queued"];
 export default function QuestionsPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [questions, setQuestions] = useState<Question[]>([]);
-  const [total, setTotal] = useState(0);
-  const [counts, setCounts] = useState<QuestionCounts | null>(null);
-  const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("all");
   const [page, setPage] = useState(0);
+  const pageData = useStore((s) => s.questionPages[`${filter}:${page}`]);
+  const questions = pageData?.items ?? [];
+  const total = pageData?.total ?? 0;
+  const counts = useStore((s) => s.questionCounts);
+  const loading = useStore((s) => s.questionsLoading);
+  const loadQuestions = useStore((s) => s.loadQuestions);
   const [rejectDialog, setRejectDialog] = useState<Question | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  const load = async (targetPage: number) => {
-    setLoading(true);
+  const load = async (targetPage: number, force = false) => {
     try {
-      const status = filter === "all" ? undefined : filter;
-      const offset = targetPage * PAGE_SIZE;
-      const data = await questionsApi.list(status, PAGE_SIZE, offset);
-      setQuestions(data.questions);
-      setTotal(data.total);
-      setCounts(data.counts);
+      const data = await loadQuestions(filter, targetPage, force);
 
       const highlightId = searchParams.get("id");
       if (highlightId && targetPage === 0) {
-        const match = data.questions.find((q) => q.id === highlightId);
+        const match = data.items.find((q) => q.id === highlightId);
         if (match) {
           navigate(`/questions/${match.id}`, { replace: true });
         } else {
@@ -66,15 +63,13 @@ export default function QuestionsPage() {
       }
     } catch {
       toast.error("Failed to load questions");
-    } finally {
-      setLoading(false);
     }
   };
 
   useEffect(() => {
-    load(page);
+    void load(page);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filter]);
+  }, [filter, page]);
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
@@ -87,7 +82,7 @@ export default function QuestionsPage() {
       setRejectDialog(null);
       setRejectReason("");
       setPage(0);
-      load(0);
+      void load(0, true);
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to reject");
     } finally {
@@ -124,7 +119,7 @@ export default function QuestionsPage() {
       await questionsApi.unreject(q.id);
       toast.success("Question restored to the queue");
       setPage(0);
-      load(0);
+      void load(0, true);
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to unreject");
     } finally {
@@ -249,7 +244,6 @@ export default function QuestionsPage() {
                       e.preventDefault();
                       if (page > 0) {
                         setPage(page - 1);
-                        load(page - 1);
                       }
                     }}
                   >
@@ -266,7 +260,6 @@ export default function QuestionsPage() {
                       onClick={(e) => {
                         e.preventDefault();
                         setPage(i);
-                        load(i);
                       }}
                     >
                       {i + 1}
@@ -283,7 +276,6 @@ export default function QuestionsPage() {
                       e.preventDefault();
                       if (page < totalPages - 1) {
                         setPage(page + 1);
-                        load(page + 1);
                       }
                     }}
                   >

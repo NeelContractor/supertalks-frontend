@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { astrologerApi, templatesApi } from "@/lib/api";
+import { astrologerApi } from "@/lib/api";
+import { useStore } from "@/store";
 import type {
   FieldStyle,
   MySite,
@@ -11,6 +12,17 @@ import type {
   WebsiteTemplate,
 } from "@/types";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -59,9 +71,6 @@ const ESSENTIAL_SECTIONS = new Set(["book", "question"]);
 const FIELD_LABELS: Record<string, string> = {
   siteName: "Site Name",
   ctaLabel: "Button Text",
-  ctaLink: "Button Link",
-  logoAlt: "Logo Alt Text",
-  imageAlt: "Image Alt Text",
   buttonLabel: "Button Text",
   eyebrow: "Eyebrow",
   quote: "Quote",
@@ -82,6 +91,9 @@ function labelFor(key: string): string {
     .replace(/^./, (c) => c.toUpperCase())
     .trim();
 }
+
+// Fields that are controlled by the builder itself and never editable inline.
+const HIDDEN_FIELD_KEYS = new Set(["ctaLink", "buttonLink", "logoAlt", "imageAlt", "alt"]);
 
 const GOOGLE_FONTS = [
   "Inter", "Roboto", "Open Sans", "Lato", "Montserrat", "Poppins",
@@ -265,17 +277,16 @@ export default function WebsitePage() {
     let cancelled = false;
     (async () => {
       try {
-        const [me, list] = await Promise.all([
-          astrologerApi.getMySite(),
-          templatesApi.list().catch(() => ({ templates: [] as WebsiteTemplate[] })),
-        ]);
+        const loadSiteResources = useStore.getState().loadSiteResources;
+        const { mySite, templates } = await loadSiteResources();
         if (cancelled) return;
-        setSite(me.site);
-        setSchema(me.schema);
-        setSlug(me.slug);
-        setTemplateId(me.templateId);
-        setTemplateName(me.templateName);
-        setTemplates(list.templates.filter((t) => t.id !== me.templateId));
+        if (!mySite) throw new Error("Failed to load website");
+        setSite(mySite.site);
+        setSchema(mySite.schema);
+        setSlug(mySite.slug);
+        setTemplateId(mySite.templateId);
+        setTemplateName(mySite.templateName);
+        setTemplates(templates.filter((t) => t.id !== mySite.templateId));
       } catch (err) {
         if (!cancelled) {
           toast.error(err instanceof Error ? err.message : "Failed to load website");
@@ -659,7 +670,7 @@ export default function WebsitePage() {
   );
 
   return (
-    <div className="flex flex-col gap-3 lg:h-[calc(100vh-6.5rem)]">
+    <div className="flex flex-col gap-3 md:h-[calc(100vh-6.5rem)]">
       {/* Toolbar */}
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-lg border bg-background px-3 py-2">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -749,16 +760,32 @@ export default function WebsitePage() {
                 <TooltipContent side="bottom">Redo</TooltipContent>
               </Tooltip>
               <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    type="button"
-                    onClick={resetAll}
-                    className="flex h-8 w-8 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent"
-                  >
-                    <RotateCcw className="h-4 w-4" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">Reset to defaults</TooltipContent>
+                <AlertDialog>
+                  <TooltipTrigger asChild>
+                    <AlertDialogTrigger asChild>
+                      <button
+                        type="button"
+                        className="flex h-8 w-8 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent"
+                      >
+                        <RotateCcw className="h-4 w-4" />
+                      </button>
+                    </AlertDialogTrigger>
+                  </TooltipTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Reset to defaults?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This will revert all your site customizations to the template&apos;s default
+                        values. This action cannot be undone.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={resetAll}>Reset</AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+                <TooltipContent side="bottom">Reset</TooltipContent>
               </Tooltip>
             </div>
         </div>
@@ -781,7 +808,7 @@ export default function WebsitePage() {
       </div>
 
       {/* Main 2-pane layout: preview 70% / options 30% */}
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-[7fr_3fr]">
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 md:grid-cols-[7fr_3fr]">
         {/* Preview column: customize pills above the preview */}
         <div className="flex min-h-0 min-w-0 flex-col gap-3">
           <div className="flex items-center gap-1.5 overflow-x-auto rounded-lg border bg-background px-3 py-2">
@@ -809,7 +836,7 @@ export default function WebsitePage() {
             ))}
           </div>
 
-          <main className="relative flex h-[440px] min-h-0 flex-1 flex-col items-center justify-center gap-0 overflow-auto rounded-lg border bg-muted/50 p-3 lg:h-auto">
+          <main className="relative flex h-[55vh] min-h-[420px] min-w-0 flex-1 flex-col items-center justify-center gap-0 overflow-auto rounded-lg border bg-muted/50 p-3 md:h-auto md:min-h-0">
             <div
               className="mx-auto overflow-hidden rounded border bg-white shadow-sm transition-all"
               style={{
@@ -830,7 +857,7 @@ export default function WebsitePage() {
         </div>
 
         {/* Options panel */}
-        <aside className="min-h-0 min-w-0 overflow-y-auto rounded-lg border bg-background p-4 lg:h-full lg:max-h-none">
+        <aside className="min-h-0 min-w-0 max-h-[45vh] overflow-y-auto rounded-lg border bg-background p-4 md:h-full md:max-h-none">
           <h2 className="mb-3 text-sm font-semibold">
             {selected === "design"
               ? "Site Design"
@@ -1182,7 +1209,10 @@ function SectionPanel({
   const grouped = useMemo(() => {
     const byGroup = new Map<FieldGroupName, { key: string; field: TemplateField }[]>();
     for (const g of FIELD_GROUPS) byGroup.set(g, []);
-    for (const [key, field] of entries) byGroup.get(fieldGroupName(key, field))!.push({ key, field });
+    for (const [key, field] of entries) {
+      if (HIDDEN_FIELD_KEYS.has(key)) continue;
+      byGroup.get(fieldGroupName(key, field))!.push({ key, field });
+    }
     return byGroup;
   }, [entries]);
 
@@ -1398,23 +1428,16 @@ function FieldControl({
           onChange={(e) => onPatch(parseFloat(e.target.value) || 0)}
         />
       ) : field.type === "color" ? (
-        <div className="flex items-center gap-2">
-          <Input
-            type="color"
-            className="h-9 w-12 p-1"
-            value={
-              typeof value === "string" && /^#/.test(value)
-                ? value
-                : (field.default as string) ?? "#000000"
-            }
-            onChange={(e) => onPatch(e.target.value)}
-          />
-          <Input
-            type="text"
-            value={typeof value === "string" ? value : (field.default as string) ?? ""}
-            onChange={(e) => onPatch(e.target.value)}
-          />
-        </div>
+        <Input
+          type="color"
+          className="h-9 w-12 p-1"
+          value={
+            typeof value === "string" && /^#/.test(value)
+              ? value
+              : (field.default as string) ?? "#000000"
+          }
+          onChange={(e) => onPatch(e.target.value)}
+        />
       ) : (
         <Input
           type="text"
@@ -1501,48 +1524,62 @@ function DesignTokens({
           })}
         </div>
       </div>
-      {Object.entries(values).map(([key, value]) => (
-        <div key={key} className="space-y-1.5">
-          <Label>{labelFor(key)}</Label>
-          {key.toLowerCase().includes("font") ? (
-            <Select value={String(value)} onValueChange={(v) => onPatch(key, v)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="serif">Serif</SelectItem>
-                <SelectItem value="sans">Sans</SelectItem>
-                <SelectSeparator />
-                {GOOGLE_FONTS.map((font) => (
-                  <SelectItem key={font} value={font} style={{ fontFamily: font }}>
-                    {font}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          ) : key.toLowerCase().includes("color") ? (
-            <div className="flex items-center gap-2">
-              <Input
-                type="color"
-                className="h-9 w-12 p-1"
-                value={typeof value === "string" && /^#/.test(value) ? value : "#771609"}
-                onChange={(e) => onPatch(key, e.target.value)}
-              />
-              <Input
-                type="text"
-                value={String(value)}
-                onChange={(e) => onPatch(key, e.target.value)}
-              />
-            </div>
-          ) : (
-            <Input
-              type="text"
-              value={String(value)}
-              onChange={(e) => onPatch(key, e.target.value)}
-            />
-          )}
+      <div>
+        <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-foreground/60">
+          Colors
+        </p>
+        <div className="grid grid-cols-2 gap-2">
+          {Object.entries(values)
+            .filter(([key]) => key.toLowerCase().includes("color"))
+            .map(([key, value]) => (
+              <div
+                key={key}
+                className="flex items-center gap-2 rounded-md border px-2 py-1.5"
+              >
+                <Input
+                  type="color"
+                  className="h-8 w-10 shrink-0 p-0.5"
+                  title={typeof value === "string" ? value : ""}
+                  value={typeof value === "string" && /^#/.test(value) ? value : "#771609"}
+                  onChange={(e) => onPatch(key, e.target.value)}
+                />
+                <span className="min-w-0 flex-1 truncate text-xs font-medium">
+                  {labelFor(key)}
+                </span>
+              </div>
+            ))}
         </div>
-      ))}
+      </div>
+
+      <div>
+        <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-foreground/60">
+          Fonts
+        </p>
+        <div className="grid grid-cols-2 gap-2">
+          {Object.entries(values)
+            .filter(([key]) => key.toLowerCase().includes("font"))
+            .map(([key, value]) => (
+              <div key={key} className="space-y-1.5">
+                <Label>{labelFor(key)}</Label>
+                <Select value={String(value)} onValueChange={(v) => onPatch(key, v)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="serif">Serif</SelectItem>
+                    <SelectItem value="sans">Sans</SelectItem>
+                    <SelectSeparator />
+                    {GOOGLE_FONTS.map((font) => (
+                      <SelectItem key={font} value={font} style={{ fontFamily: font }}>
+                        {font}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ))}
+        </div>
+      </div>
     </div>
   );
 }

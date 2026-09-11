@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { useStore } from "@/store";
 import { questionsApi } from "@/lib/api";
 import { connectQuestionSocket } from "@/lib/ws";
 import type { Question, QuestionMessage as ChatMessage } from "@/types";
@@ -16,36 +17,19 @@ const TALKABLE = ["Queued", "Answered"];
 export default function QuestionChatPage() {
   const { id = "" } = useParams();
   const navigate = useNavigate();
-  const [question, setQuestion] = useState<Question | null>(null);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const question = useStore((s) => s.questionById[id]);
+  const messages = useStore((s) => s.messagesByQuestion?.[id]) ?? [];
+  const loadThread = useStore((s) => s.loadThread);
+  const upsertMessage = useStore((s) => s.upsertMessage);
+  const setQuestionStatus = useStore((s) => s.setQuestionStatus);
   const [loading, setLoading] = useState(true);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
-  const seenIds = useRef<Set<string>>(new Set());
-
-  const setStatus = (status: string) => {
-    setQuestion((current) =>
-      current && current.id === id ? { ...current, status } : current
-    );
-  };
-
-  const upsertMessage = (message: ChatMessage) => {
-    if (seenIds.current.has(message.id)) return;
-    seenIds.current.add(message.id);
-    setMessages((prev) => [...prev, message]);
-  };
 
   const load = async () => {
     try {
-      const data = await questionsApi.messages(id);
-      seenIds.current = new Set(data.messages.map((m) => m.id));
-      setMessages(data.messages);
-      setQuestion((current) =>
-        current && current.id === data.question.id
-          ? { ...current, status: data.question.status }
-          : data.question
-      );
+      await loadThread(id);
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to load conversation");
     } finally {
@@ -54,14 +38,15 @@ export default function QuestionChatPage() {
   };
 
   useEffect(() => {
+    setLoading(true);
     void load();
 
     const disconnect = connectQuestionSocket(id, {
-      onMessage: ({ message, question }) => {
-        upsertMessage(message);
-        setStatus(question.status);
+      onMessage: ({ message, question: q }) => {
+        upsertMessage(id, message);
+        setQuestionStatus(id, q.status);
       },
-      onQuestionUpdate: ({ status }) => setStatus(status),
+      onQuestionUpdate: ({ status }) => setQuestionStatus(id, status),
     });
 
     return () => disconnect();
@@ -81,8 +66,8 @@ export default function QuestionChatPage() {
     setSending(true);
     try {
       const { message, question: updated } = await questionsApi.sendMessage(question.id, draft.trim());
-      upsertMessage(message);
-      setQuestion((current) => (current && current.id === updated.id ? { ...current, status: updated.status } : current));
+      upsertMessage(question.id, message);
+      setQuestionStatus(question.id, updated.status);
       setDraft("");
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to send message");

@@ -1,7 +1,8 @@
 import { useEffect, useState, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
+import { useStore } from "@/store";
 import { bookingsApi } from "@/lib/api";
-import type { Booking, BookingCounts } from "@/types";
+import type { Booking } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -30,12 +31,14 @@ const PAGE_SIZE = 10;
 
 export default function BookingsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [bookings, setBookings] = useState<Booking[]>([]);
-  const [total, setTotal] = useState(0);
-  const [counts, setCounts] = useState<BookingCounts | null>(null);
-  const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("all");
   const [page, setPage] = useState(0);
+  const pageData = useStore((s) => s.bookingPages[`${filter}:${page}`]);
+  const bookings = pageData?.items ?? [];
+  const total = pageData?.total ?? 0;
+  const counts = useStore((s) => s.bookingCounts);
+  const loading = useStore((s) => s.bookingsLoading);
+  const loadBookings = useStore((s) => s.loadBookings);
   const [cancelDialog, setCancelDialog] = useState<Booking | null>(null);
   const [rescheduleDialog, setRescheduleDialog] = useState<Booking | null>(null);
   const [cancelReason, setCancelReason] = useState("");
@@ -43,33 +46,25 @@ export default function BookingsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
 
-  const load = useCallback(async (targetPage: number) => {
-    setLoading(true);
+  const load = useCallback(async (targetPage: number, force = false) => {
     try {
-      const status = filter === "all" ? undefined : filter;
-      const offset = targetPage * PAGE_SIZE;
-      const data = await bookingsApi.list(status, PAGE_SIZE, offset);
-      setBookings(data.bookings);
-      setTotal(data.total);
-      setCounts(data.counts);
-
+      const data = await loadBookings(filter, targetPage, force);
       const highlightId = searchParams.get("id");
       if (highlightId && targetPage === 0) {
         setHighlightedId(highlightId);
         setSearchParams({}, { replace: true });
       }
+      return data;
     } catch {
       toast.error("Failed to load bookings");
-    } finally {
-      setLoading(false);
+      return null;
     }
-  }, [filter, searchParams, setSearchParams]);
+  }, [filter, loadBookings, searchParams, setSearchParams]);
 
   useEffect(() => {
-    load(page);
-    // reset on filter change only
+    void load(page);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filter]);
+  }, [filter, page]);
 
   useEffect(() => {
     if (!loading && highlightedId) {
@@ -92,7 +87,7 @@ export default function BookingsPage() {
       await bookingsApi.complete(booking.id);
       toast.success("Booking marked as completed");
       setPage(0);
-      load(0);
+      void load(0, true);
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to complete");
     } finally {
@@ -109,7 +104,7 @@ export default function BookingsPage() {
       setCancelDialog(null);
       setCancelReason("");
       setPage(0);
-      load(0);
+      void load(0, true);
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to cancel");
     } finally {
@@ -127,7 +122,7 @@ export default function BookingsPage() {
       setRescheduleDialog(null);
       setNewDateTime("");
       setPage(0);
-      load(0);
+      void load(0, true);
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to reschedule");
     } finally {
@@ -273,7 +268,6 @@ export default function BookingsPage() {
                       e.preventDefault();
                       if (page > 0) {
                         setPage(page - 1);
-                        load(page - 1);
                       }
                     }}
                   >
@@ -290,7 +284,6 @@ export default function BookingsPage() {
                       onClick={(e) => {
                         e.preventDefault();
                         setPage(i);
-                        load(i);
                       }}
                     >
                       {i + 1}
@@ -307,7 +300,6 @@ export default function BookingsPage() {
                       e.preventDefault();
                       if (page < totalPages - 1) {
                         setPage(page + 1);
-                        load(page + 1);
                       }
                     }}
                   >

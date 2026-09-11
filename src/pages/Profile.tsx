@@ -1,7 +1,6 @@
-import { useEffect, useState, useCallback } from "react";
-import { useAuth } from "@/contexts/auth";
+import { useEffect, useState } from "react";
+import { useStore } from "@/store";
 import { astrologerApi } from "@/lib/api";
-import type { AstrologerProfile, AvailabilityRule, AvailabilityException } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -36,10 +35,14 @@ function OverviewRow({ label, value }: { label: string; value?: string | number 
 }
 
 export default function ProfilePage() {
-  const { profile: initialProfile, refreshProfile } = useAuth();
-  const [profile, setProfile] = useState<AstrologerProfile | null>(initialProfile);
-  const [rules, setRules] = useState<AvailabilityRule[]>([]);
-  const [exceptions, setExceptions] = useState<AvailabilityException[]>([]);
+  const profile = useStore((s) => s.profile);
+  const rules = useStore((s) => s.rules);
+  const exceptions = useStore((s) => s.exceptions);
+  const loadAvailability = useStore((s) => s.loadAvailability);
+  const setRules = useStore((s) => s.setRules);
+  const setExceptions = useStore((s) => s.setExceptions);
+  const applyProfile = useStore((s) => s.applyProfile);
+  const refreshProfile = useStore((s) => s.refreshProfile);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("bio");
 
@@ -111,45 +114,46 @@ export default function ProfilePage() {
     }
   };
 
-  const load = useCallback(async () => {
+  const load = async () => {
     try {
-      const [profileData, rulesData, exceptionsData] = await Promise.all([
-        astrologerApi.getMe(),
-        astrologerApi.getAvailabilityRules().catch(() => ({ rules: [] })),
-        astrologerApi.getExceptions().catch(() => ({ exceptions: [] })),
-      ]);
-      setProfile(profileData.profile);
-      setRules(rulesData.rules);
-      setExceptions(exceptionsData.exceptions);
+      let p = useStore.getState().profile;
+      if (!p) {
+        await refreshProfile();
+        p = useStore.getState().profile;
+      }
+      await loadAvailability();
 
-      const p = profileData.profile;
-      setBio(p.bio ?? "");
-      setSpecializations(p.specializations.join(", "));
-      setLanguages(p.languages.join(", "));
-      setExperienceYears(String(p.experienceYears ?? ""));
-      setQuestionPrice(String(p.questionPricePaise / 100));
-      setCallPrice(String(p.callPricePerSlotPaise / 100));
-      setSlotDuration(String(p.slotDurationMinutes));
-      setBufferMinutes(String(p.bufferMinutes));
+      const prof = p ?? useStore.getState().profile;
+      if (prof) {
+        setBio(prof.bio ?? "");
+        setSpecializations(prof.specializations.join(", "));
+        setLanguages(prof.languages.join(", "));
+        setExperienceYears(String(prof.experienceYears ?? ""));
+        setQuestionPrice(String(prof.questionPricePaise / 100));
+        setCallPrice(String(prof.callPricePerSlotPaise / 100));
+        setSlotDuration(String(prof.slotDurationMinutes));
+        setBufferMinutes(String(prof.bufferMinutes));
 
-      const hasBio =
-        !!p.bio?.trim() ||
-        p.specializations.length > 0 ||
-        p.languages.length > 0 ||
-        p.experienceYears != null;
-      const hasPricing = p.questionPricePaise > 0 || p.callPricePerSlotPaise > 0;
-      setBioEditing(!hasBio);
-      setPricingEditing(!hasPricing);
+        const hasBio =
+          !!prof.bio?.trim() ||
+          prof.specializations.length > 0 ||
+          prof.languages.length > 0 ||
+          prof.experienceYears != null;
+        const hasPricing = prof.questionPricePaise > 0 || prof.callPricePerSlotPaise > 0;
+        setBioEditing(!hasBio);
+        setPricingEditing(!hasPricing);
+      }
     } catch {
       toast.error("Failed to load profile");
     } finally {
       setLoading(false);
     }
-  }, []);
+  };
 
   useEffect(() => {
-    load();
-  }, [load]);
+    void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleSaveBio = async () => {
     setSaving(true);
@@ -164,9 +168,8 @@ export default function ProfilePage() {
           : [],
         experienceYears: experienceYears ? parseInt(experienceYears, 10) : undefined,
       });
-      setProfile(data.profile);
+      applyProfile(data.profile);
       setBioEditing(false);
-      await refreshProfile();
       toast.success("Profile updated");
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to update profile");
@@ -184,9 +187,8 @@ export default function ProfilePage() {
         slotDurationMinutes: parseInt(slotDuration, 10),
         bufferMinutes: parseInt(bufferMinutes, 10),
       });
-      setProfile(data.profile);
+      applyProfile(data.profile);
       setPricingEditing(false);
-      await refreshProfile();
       toast.success("Pricing updated");
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to update pricing");
@@ -198,15 +200,14 @@ export default function ProfilePage() {
   const handleAddRule = async () => {
     setSaving(true);
     try {
-      await astrologerApi.createAvailabilityRule({
+      const data = await astrologerApi.createAvailabilityRule({
         dayOfWeek: parseInt(ruleDay, 10),
         startTime: ruleStart,
         endTime: ruleEnd,
       });
       toast.success("Availability rule added");
       setRuleDialog(false);
-      const data = await astrologerApi.getAvailabilityRules();
-      setRules(data.rules);
+      setRules([...useStore.getState().rules, data.rule]);
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to add rule");
     } finally {
@@ -217,7 +218,7 @@ export default function ProfilePage() {
   const handleDeleteRule = async (id: string) => {
     try {
       await astrologerApi.deleteAvailabilityRule(id);
-      setRules((prev) => prev.filter((r) => r.id !== id));
+      setRules(useStore.getState().rules.filter((r) => r.id !== id));
       toast.success("Rule deleted");
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to delete rule");
@@ -227,7 +228,7 @@ export default function ProfilePage() {
   const handleAddException = async () => {
     setSaving(true);
     try {
-      await astrologerApi.createException({
+      const data = await astrologerApi.createException({
         date: excDate,
         isBlocked: excBlocked,
         startTime: excStart || undefined,
@@ -236,8 +237,7 @@ export default function ProfilePage() {
       });
       toast.success("Exception added");
       setExceptionDialog(false);
-      const data = await astrologerApi.getExceptions();
-      setExceptions(data.exceptions);
+      setExceptions([...useStore.getState().exceptions, data.exception]);
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to add exception");
     } finally {
@@ -248,7 +248,7 @@ export default function ProfilePage() {
   const handleDeleteException = async (id: string) => {
     try {
       await astrologerApi.deleteException(id);
-      setExceptions((prev) => prev.filter((e) => e.id !== id));
+      setExceptions(useStore.getState().exceptions.filter((e) => e.id !== id));
       toast.success("Exception deleted");
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to delete exception");
