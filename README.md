@@ -99,5 +99,8 @@ The frontend talks to the backend at `http://localhost:3000` (`src/lib/api.ts`).
 > The `GET /bookings` and `GET /questions` list endpoints are paginated server-side via `limit` (default 10, max 100) and `offset` query params. Responses include a `total` and per-status `counts` object, used by the dashboard stats cards and the per-tab count badges. List pages use the shadcn pagination control to page through results.
 
 # TODO 
-- make the chat window a bit widther on the admin side and client side
-- make the sections section toggle able on customize tab
+- add toggle feature to show open booking, canceled bookings
+- then customize tab is open in tablet view the main preview is shrink and nothing is understandable and you make the table view preview a bit bigger.
+- add logic to have state variable in a signle file with zustand state management library. in frontend and public-site folder.
+- on the customize tab for example there is dark color it should have a colour picker and remove the input box logic, remove the button link, when clicked on the button it should scroll to question's section, remove logo alt text and all the image alt just be supertalks
+- add a alert dialog box to confirm on reset button on customize tab. as it will revert all the changes to default.

@@ -92,7 +92,7 @@ export default function QuestionChatPage() {
   };
 
   return (
-    <div className="mx-auto flex h-[calc(100vh-7rem)] max-w-2xl flex-col space-y-4">
+    <div className="mx-auto flex h-[calc(100vh-7rem)] flex-col space-y-4">
       <div className="flex items-center gap-3">
         <Button variant="outline" size="sm" onClick={() => navigate("/questions")}>
           <ArrowLeft className="h-4 w-4 mr-1" /> Back to questions

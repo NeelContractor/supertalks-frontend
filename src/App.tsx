@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/auth";
 import { ProtectedRoute, AstrologerRoute } from "@/components/ProtectedRoute";
 import { Navbar } from "@/components/Navbar";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "sonner";
 import SignInPage from "@/pages/SignIn";
 import SignUpPage from "@/pages/SignUp";
@@ -17,7 +18,7 @@ function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-muted/40">
       <Navbar />
-      <main className="container mx-auto p-6">{children}</main>
+      <main className="mx-auto w-[80%] p-6">{children}</main>
     </div>
   );
 }
@@ -26,8 +27,9 @@ export function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <Toaster position="top-right" richColors />
-        <Routes>
+        <TooltipProvider delayDuration={100}>
+          <Toaster position="top-right" richColors />
+          <Routes>
           <Route path="/signin" element={<SignInPage />} />
           <Route path="/signup" element={<SignUpPage />} />
           <Route
@@ -99,7 +101,8 @@ export function App() {
             }
           />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
-        </Routes>
+          </Routes>
+        </TooltipProvider>
       </AuthProvider>
     </BrowserRouter>
   );

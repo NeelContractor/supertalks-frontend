@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { astrologerApi, templatesApi } from "@/lib/api";
 import type {
   FieldStyle,
@@ -14,6 +14,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   Select,
   SelectContent,
@@ -656,7 +661,7 @@ export default function WebsitePage() {
   return (
     <div className="flex flex-col gap-3 lg:h-[calc(100vh-6.5rem)]">
       {/* Toolbar */}
-      <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-background px-3 py-2">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-lg border bg-background px-3 py-2">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <LayoutTemplate className="h-4 w-4 shrink-0 text-muted-foreground" />
           {templates.length > 0 ? (
@@ -687,60 +692,78 @@ export default function WebsitePage() {
           )}
         </div>
 
-        <div className="flex min-w-0 flex-wrap items-center justify-end gap-3">
-          <div className="flex items-center gap-1 rounded-md border p-0.5">
-            {(
-              Object.keys(DEVICES) as Device[]
-            ).map((d) => {
-              const { label, Icon } = DEVICES[d];
-              return (
-                <button
-                  key={d}
-                  type="button"
-                  title={label}
-                  onClick={() => setDevice(d)}
-                  className={`flex h-7 w-7 items-center justify-center rounded ${
-                    device === d
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover:bg-accent"
-                  }`}
-                >
-                  <Icon className="h-4 w-4" />
-                </button>
-              );
-            })}
+        <div className="flex shrink-0 items-center gap-3">
+          <div className="flex shrink-0 items-center gap-2">
+            <div className="flex items-center gap-1 rounded-md border p-0.5">
+              {(
+                Object.keys(DEVICES) as Device[]
+              ).map((d) => {
+                const { label, Icon } = DEVICES[d];
+                return (
+                  <button
+                    key={d}
+                    type="button"
+                    title={label}
+                    onClick={() => setDevice(d)}
+                    className={`flex h-8 w-8 items-center justify-center rounded ${
+                      device === d
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted-foreground hover:bg-accent"
+                    }`}
+                  >
+                    <Icon className="h-4 w-4" />
+                  </button>
+                );
+              })}
+            </div>
+            <span className="hidden whitespace-nowrap text-xs text-muted-foreground sm:inline">
+              {dirty ? "Unsaved changes" : savedAt ? `Saved ${savedAt.toLocaleTimeString()}` : "No changes"}
+            </span>
           </div>
-          <span className="hidden text-xs text-muted-foreground sm:inline">
-            {dirty ? "Unsaved changes" : savedAt ? `Saved ${savedAt.toLocaleTimeString()}` : "No changes"}
-          </span>
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              title="Undo"
-              onClick={undo}
-              disabled={historyIndex < 0}
-              className="flex h-7 w-7 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent disabled:pointer-events-none disabled:opacity-40"
-            >
-              <Undo2 className="h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              title="Redo"
-              onClick={redo}
-              disabled={historyIndex >= history.length - 1}
-              className="flex h-7 w-7 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent disabled:pointer-events-none disabled:opacity-40"
-            >
-              <Redo2 className="h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              title="Reset to defaults"
-              onClick={resetAll}
-              className="flex h-7 w-7 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent"
-            >
-              <RotateCcw className="h-4 w-4" />
-            </button>
-          </div>
+
+          <div className="flex shrink-0 items-center gap-1">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={undo}
+                    disabled={historyIndex < 0}
+                    className="flex h-8 w-8 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent disabled:pointer-events-none disabled:opacity-40"
+                  >
+                    <Undo2 className="h-4 w-4" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">Undo</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={redo}
+                    disabled={historyIndex >= history.length - 1}
+                    className="flex h-8 w-8 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent disabled:pointer-events-none disabled:opacity-40"
+                  >
+                    <Redo2 className="h-4 w-4" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">Redo</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={resetAll}
+                    className="flex h-8 w-8 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent"
+                  >
+                    <RotateCcw className="h-4 w-4" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">Reset to defaults</TooltipContent>
+              </Tooltip>
+            </div>
+        </div>
+
+        <div className="flex shrink-0 items-center gap-2">
           <Button
             variant="outline"
             size="sm"
@@ -757,76 +780,57 @@ export default function WebsitePage() {
         </div>
       </div>
 
-      {/* Main 3-pane layout */}
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-[200px_minmax(0,1fr)_300px]">
-        {/* Sections list */}
-        <aside className="max-h-44 min-h-0 overflow-y-auto rounded-lg border bg-background p-2 lg:max-h-none">
-          <SectionNavItem
-            active={selected === "design"}
-            label="Site Design"
-            highlight
-            onClick={() => {
-              setSelected("design");
-              setActiveFieldKey(null);
-            }}
-          />
-          <div className="my-2 h-px bg-border" />
-          <div className="mb-1 px-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Sections
-          </div>
-          {site.sections.map((section) => (
-            <SectionNavItem
-              key={section.id}
-              active={selected === section.id}
-              label={section.name}
+      {/* Main 2-pane layout: preview 70% / options 30% */}
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-[7fr_3fr]">
+        {/* Preview column: customize pills above the preview */}
+        <div className="flex min-h-0 min-w-0 flex-col gap-3">
+          <div className="flex items-center gap-1.5 overflow-x-auto rounded-lg border bg-background px-3 py-2">
+            <OptionPill
+              active={selected === "design"}
               onClick={() => {
-                setSelected(section.id);
+                setSelected("design");
                 setActiveFieldKey(null);
               }}
-              removable={!ESSENTIAL_SECTIONS.has(section.id)}
-              onRemove={() => removeSection(section.id)}
-            />
-          ))}
-          {availableSections.length > 0 && (
-            <div className="mt-2 border-t pt-2">
-              <div className="mb-1 px-2 text-xs font-medium text-muted-foreground">
-                Add Section
-              </div>
-              <div className="flex flex-wrap gap-1">
-                {availableSections.map((sec) => (
-                  <button
-                    key={sec.id}
-                    type="button"
-                    onClick={() => addSection(sec)}
-                    className="flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                  >
-                    <Plus className="h-3 w-3" />
-                    {sec.name}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-        </aside>
-
-        {/* Preview */}
-        <main className="relative h-[440px] min-h-0 overflow-auto rounded-lg border bg-muted/50 p-3 lg:h-auto">
-          <div
-            className="mx-auto overflow-hidden rounded border bg-white shadow-sm transition-all"
-            style={{ width: deviceInfo.width, maxWidth: "100%", height: "100%" }}
-          >
-            <iframe
-              key={iframeKey}
-              ref={iframeRef}
-              title="Website preview"
-              src={`${SITE_ORIGIN}/${slug}?edit=1`}
-              className="h-full w-full border-0 bg-white"
-            />
+            >
+              <LayoutTemplate className="h-3.5 w-3.5" />
+              Site Design
+            </OptionPill>
+            {site.sections.map((section) => (
+              <OptionPill
+                key={section.id}
+                active={selected === section.id}
+                onClick={() => {
+                  setSelected(section.id);
+                  setActiveFieldKey(null);
+                }}
+              >
+                {section.name}
+              </OptionPill>
+            ))}
           </div>
-        </main>
 
-        {/* Property panel */}
-        <aside className="min-h-0 overflow-y-auto rounded-lg border bg-background p-4 lg:max-h-none">
+          <main className="relative flex h-[440px] min-h-0 flex-1 flex-col items-center justify-center gap-0 overflow-auto rounded-lg border bg-muted/50 p-3 lg:h-auto">
+            <div
+              className="mx-auto overflow-hidden rounded border bg-white shadow-sm transition-all"
+              style={{
+                width: deviceInfo.width,
+                maxWidth: "100%",
+                height: device === "desktop" ? "100%" : "min(100%, 720px)",
+              }}
+            >
+              <iframe
+                key={iframeKey}
+                ref={iframeRef}
+                title="Website preview"
+                src={`${SITE_ORIGIN}/${slug}?edit=1`}
+                className="h-full w-full border-0 bg-white"
+              />
+            </div>
+          </main>
+        </div>
+
+        {/* Options panel */}
+        <aside className="min-h-0 min-w-0 overflow-y-auto rounded-lg border bg-background p-4 lg:h-full lg:max-h-none">
           <h2 className="mb-3 text-sm font-semibold">
             {selected === "design"
               ? "Site Design"
@@ -871,6 +875,30 @@ export default function WebsitePage() {
         </aside>
       </div>
     </div>
+  );
+}
+
+function OptionPill({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+        active
+          ? "border-primary bg-primary text-primary-foreground"
+          : "border-border bg-background text-muted-foreground hover:bg-accent hover:text-foreground"
+      }`}
+    >
+      {children}
+    </button>
   );
 }
 
