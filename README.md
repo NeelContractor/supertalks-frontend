@@ -101,7 +101,7 @@ The frontend talks to the backend at `http://localhost:3000` (`src/lib/api.ts`).
 # TODO 
 
 - session expire getting very frequently
-- on customize tab astorloger should not be able to update button text, and booking and questions sections on customize tab
-- is the websocket correctly added to the backend. i have installed ws library. implement whatever is the best current implement or ws library logic.
-- add logic to unreject the rejected questions
-- on expo app's schemule tab availability rules should display first 5 and a button to display all and same with exceptions to display first 5 and a button to load all
+- add logic to unreject the rejected questions (not sure, depends on the rejected logic, if the astrologer reject and user gets a refund then dont implement this)
+
+- pay integration, and 
+- rejected logic (what happens when astrologer rejects a booking or question?)

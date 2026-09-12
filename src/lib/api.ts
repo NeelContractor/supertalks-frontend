@@ -25,6 +25,8 @@ interface RequestOptions {
   method?: HttpMethod;
   body?: unknown;
   headers?: Record<string, string>;
+  /** Internal: marks a retried request so we never refresh twice in a row. */
+  retried?: boolean;
 }
 
 class ApiError extends Error {
@@ -57,6 +59,31 @@ function handleExpiredSession() {
   );
 }
 
+/**
+ * Exchange the stored refresh token for a fresh pair (single-flight: parallel
+ * 401s share one refresh instead of stampeding, since the backend rotates and
+ * revokes the token on every use).
+ */
+let refreshPromise: Promise<boolean> | null = null;
+
+async function refreshAccessToken(): Promise<boolean> {
+  const refreshToken = getRefreshToken();
+  if (!refreshToken) return false;
+  try {
+    const res = await fetch(`${API_BASE}/auth/refresh`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refreshToken }),
+    });
+    if (!res.ok) return false;
+    const data = (await res.json()) as { accessToken: string; refreshToken: string };
+    setTokens(data.accessToken, data.refreshToken);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function getAccessToken(): string | null {
   return localStorage.getItem("accessToken");
 }
@@ -78,7 +105,7 @@ export function clearTokens() {
 export async function api<T = unknown>(
   path: string,
   options: RequestOptions = {},
-): Promise<T> {  const { method = "GET", body, headers: extraHeaders = {} } = options;
+): Promise<T> {  const { method = "GET", body, headers: extraHeaders = {}, retried = false } = options;
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -99,6 +126,18 @@ export async function api<T = unknown>(
   const data = await res.json().catch(() => null);
 
   if (!res.ok) {
+    if (res.status === 401 && token && !retried) {
+      // Token probably expired: try to refresh once, then replay the request.
+      if (!refreshPromise) {
+        refreshPromise = refreshAccessToken().finally(() => {
+          refreshPromise = null;
+        });
+      }
+      const refreshed = await refreshPromise;
+      if (refreshed) {
+        return api<T>(path, { ...options, retried: true });
+      }
+    }
     if (res.status === 401 && token) {
       handleExpiredSession();
     }

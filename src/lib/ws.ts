@@ -1,7 +1,7 @@
 import type { QuestionMessage } from "@/types";
 import { getAccessToken } from "@/lib/api";
 
-const WS_URL = "ws://localhost:3003";
+const WS_URL = "ws://localhost:3000";
 
 export type RealtimeEvent =
   | {
