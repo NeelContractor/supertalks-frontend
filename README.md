@@ -103,5 +103,6 @@ The frontend talks to the backend at `http://localhost:3000` (`src/lib/api.ts`).
 - session expire getting very frequently
 - add logic to unreject the rejected questions (not sure, depends on the rejected logic, if the astrologer reject and user gets a refund then dont implement this)
 
+- add image input box on customize tab
 - pay integration, and 
 - rejected logic (what happens when astrologer rejects a booking or question?)

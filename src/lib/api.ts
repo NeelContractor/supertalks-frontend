@@ -29,7 +29,7 @@ interface RequestOptions {
   retried?: boolean;
 }
 
-class ApiError extends Error {
+export class ApiError extends Error {
   status: number;
   data: unknown;
 
@@ -211,6 +211,7 @@ export const astrologerApi = {
     dayOfWeek: number;
     startTime: string;
     endTime: string;
+    resolve?: "remove-exceptions";
   }) =>
     api<{ rule: AvailabilityRule }>("/astrologers/me/availability-rules", {
       method: "POST",
@@ -219,7 +220,13 @@ export const astrologerApi = {
 
   updateAvailabilityRule: (
     id: string,
-    data: { dayOfWeek?: number; startTime?: string; endTime?: string; isActive?: boolean },
+    data: {
+      dayOfWeek?: number;
+      startTime?: string;
+      endTime?: string;
+      isActive?: boolean;
+      resolve?: "remove-exceptions";
+    },
   ) =>
     api<{ rule: AvailabilityRule }>(`/astrologers/me/availability-rules/${id}`, {
       method: "PATCH",
@@ -234,6 +241,7 @@ export const astrologerApi = {
   bulkSetAvailabilityRules: (data: {
     daysOfWeek: number[];
     windows: { startTime: string; endTime: string }[];
+    resolve?: "remove-exceptions";
   }) =>
     api<{ rules: AvailabilityRule[] }>("/astrologers/me/availability-rules/bulk", {
       method: "POST",
@@ -249,6 +257,7 @@ export const astrologerApi = {
     startTime?: string;
     endTime?: string;
     reason?: string;
+    resolve?: "trim-rules";
   }) =>
     api<{ exception: AvailabilityException }>("/astrologers/me/exceptions", {
       method: "POST",

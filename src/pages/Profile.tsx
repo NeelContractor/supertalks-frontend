@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useStore } from "@/store";
-import { astrologerApi } from "@/lib/api";
+import { ApiError, astrologerApi } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,9 +18,39 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, TriangleAlert } from "lucide-react";
 
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+interface RuleClash {
+  ruleId: string;
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+}
+
+interface ExceptionClash {
+  exceptionId: string;
+  date: string;
+  isBlocked: boolean;
+  startTime: string | null;
+  endTime: string | null;
+  reason: string | null;
+}
+
+type ClashDialog =
+  | { kind: "rule"; conflicts: RuleClash[]; summary: string; onResolve: () => Promise<void> }
+  | {
+      kind: "exception";
+      conflicts: ExceptionClash[];
+      summary: string;
+      onResolve: () => Promise<void>;
+    }
+  | null;
+
+function formatExceptionWindow(e: ExceptionClash) {
+  return e.startTime && e.endTime ? `${e.startTime} - ${e.endTime}` : "All day";
+}
 
 function OverviewRow({ label, value }: { label: string; value?: string | number | null }) {
   const hasValue = value !== undefined && value !== null && String(value).trim() !== "";
@@ -77,6 +107,17 @@ export default function ProfilePage() {
   const [excEnd, setExcEnd] = useState("");
   const [excReason, setExcReason] = useState("");
 
+  // Clash handling between exceptions and availability rules
+  const [clash, setClash] = useState<ClashDialog>(null);
+  const [bookingBlock, setBookingBlock] = useState<string | null>(null);
+
+  const readClash = (err: unknown) => {
+    if (!(err instanceof ApiError)) return null;
+    const data = (err.data ?? {}) as Record<string, unknown>;
+    const code = typeof data.code === "string" ? data.code : "";
+    return code ? { code, data, message: err.message } : null;
+  };
+
   // Weekly default template
   const [templateDays, setTemplateDays] = useState<number[]>([1, 2, 3, 4, 5]);
   const [templateWindows, setTemplateWindows] = useState([
@@ -97,17 +138,30 @@ export default function ProfilePage() {
     );
   };
 
-  const handleApplyTemplate = async () => {
+  const handleApplyTemplate = async (resolve?: "remove-exceptions") => {
     if (templateDays.length === 0) return;
     setApplyingTemplate(true);
     try {
       const data = await astrologerApi.bulkSetAvailabilityRules({
         daysOfWeek: templateDays,
         windows: templateWindows,
+        resolve,
       });
       setRules(data.rules);
+      setClash(null);
       toast.success("Default availability applied");
     } catch (err: unknown) {
+      const info = readClash(err);
+      if (info?.code === "EXCEPTION_CONFLICT") {
+        setClash({
+          kind: "exception",
+          conflicts: (info.data.conflicts as ExceptionClash[]) ?? [],
+          summary:
+            "These weekly windows overlap one or more date-specific exceptions. Pick which one to keep.",
+          onResolve: () => handleApplyTemplate("remove-exceptions"),
+        });
+        return;
+      }
       toast.error(err instanceof Error ? err.message : "Failed to apply default availability");
     } finally {
       setApplyingTemplate(false);
@@ -197,18 +251,30 @@ export default function ProfilePage() {
     }
   };
 
-  const handleAddRule = async () => {
+  const handleAddRule = async (resolve?: "remove-exceptions") => {
     setSaving(true);
     try {
-      const data = await astrologerApi.createAvailabilityRule({
+      await astrologerApi.createAvailabilityRule({
         dayOfWeek: parseInt(ruleDay, 10),
         startTime: ruleStart,
         endTime: ruleEnd,
+        resolve,
       });
       toast.success("Availability rule added");
       setRuleDialog(false);
-      setRules([...useStore.getState().rules, data.rule]);
+      setClash(null);
+      await loadAvailability(true);
     } catch (err: unknown) {
+      const info = readClash(err);
+      if (info?.code === "EXCEPTION_CONFLICT") {
+        setClash({
+          kind: "exception",
+          conflicts: (info.data.conflicts as ExceptionClash[]) ?? [],
+          summary: `This ${DAYS[parseInt(ruleDay, 10)]} availability overlaps one or more date-specific exceptions. Pick which one to keep.`,
+          onResolve: () => handleAddRule("remove-exceptions"),
+        });
+        return;
+      }
       toast.error(err instanceof Error ? err.message : "Failed to add rule");
     } finally {
       setSaving(false);
@@ -225,20 +291,41 @@ export default function ProfilePage() {
     }
   };
 
-  const handleAddException = async () => {
+  const handleAddException = async (resolve?: "trim-rules") => {
     setSaving(true);
     try {
-      const data = await astrologerApi.createException({
+      await astrologerApi.createException({
         date: excDate,
         isBlocked: excBlocked,
         startTime: excStart || undefined,
         endTime: excEnd || undefined,
         reason: excReason.trim() || undefined,
+        resolve,
       });
-      toast.success("Exception added");
+      toast.success(resolve ? "Availability updated and exception saved" : "Exception added");
       setExceptionDialog(false);
-      setExceptions([...useStore.getState().exceptions, data.exception]);
+      setClash(null);
+      await loadAvailability(true);
     } catch (err: unknown) {
+      const info = readClash(err);
+      if (info?.code === "BOOKING_CONFLICT") {
+        setBookingBlock(
+          err instanceof Error
+            ? err.message
+            : "This exception overlaps a session already booked by a client.",
+        );
+        return;
+      }
+      if (info?.code === "RULE_CONFLICT") {
+        const window = excStart && excEnd ? `${excStart} - ${excEnd}` : "the whole day";
+        setClash({
+          kind: "rule",
+          conflicts: (info.data.conflicts as RuleClash[]) ?? [],
+          summary: `Your exception on ${excDate} (${window}) clashes with your availability. Pick which one to remove.`,
+          onResolve: () => handleAddException("trim-rules"),
+        });
+        return;
+      }
       toast.error(err instanceof Error ? err.message : "Failed to add exception");
     } finally {
       setSaving(false);
@@ -494,8 +581,8 @@ export default function ProfilePage() {
             <CardHeader>
               <CardTitle>Default Weekly Availability</CardTitle>
               <CardDescription>
-                Pick days and time windows, then apply them in one go. Exceptions (see the
-                Exceptions tab) automatically override these rules for their date—they never clash.
+                Pick days and time windows, then apply them in one go. If a window clashes with a
+                date-specific exception you'll be asked which one to keep.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -675,7 +762,7 @@ export default function ProfilePage() {
             <Button variant="outline" onClick={() => setRuleDialog(false)}>
               Cancel
             </Button>
-            <Button onClick={handleAddRule} disabled={saving}>
+            <Button onClick={() => handleAddRule()} disabled={saving}>
               {saving ? "Adding..." : "Add Rule"}
             </Button>
           </DialogFooter>
@@ -747,9 +834,106 @@ export default function ProfilePage() {
             <Button variant="outline" onClick={() => setExceptionDialog(false)}>
               Cancel
             </Button>
-            <Button onClick={handleAddException} disabled={saving || !excDate}>
+            <Button onClick={() => handleAddException()} disabled={saving || !excDate}>
               {saving ? "Adding..." : "Add Exception"}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Exception clashes with weekly availability */}
+      <Dialog open={clash?.kind === "rule"} onOpenChange={(open) => !open && setClash(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <TriangleAlert className="h-5 w-5 text-amber-500" />
+              Availability clash
+            </DialogTitle>
+            <DialogDescription>{clash?.summary}</DialogDescription>
+          </DialogHeader>
+          {clash?.kind === "rule" && (
+            <div className="space-y-2">
+              {clash.conflicts.map((c) => (
+                <div
+                  key={c.ruleId}
+                  className="flex items-center gap-3 rounded-md border p-3 text-sm"
+                >
+                  <Badge variant="outline">{DAYS[c.dayOfWeek]}</Badge>
+                  <span>
+                    {c.startTime} - {c.endTime}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setClash(null)}>
+              Remove exception
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={saving}
+              onClick={() => void clash?.onResolve()}
+            >
+              {saving ? "Working..." : "Remove availability"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Weekly availability clashes with existing exceptions */}
+      <Dialog open={clash?.kind === "exception"} onOpenChange={(open) => !open && setClash(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <TriangleAlert className="h-5 w-5 text-amber-500" />
+              Exception clash
+            </DialogTitle>
+            <DialogDescription>{clash?.summary}</DialogDescription>
+          </DialogHeader>
+          {clash?.kind === "exception" && (
+            <div className="space-y-2">
+              {clash.conflicts.map((e) => (
+                <div
+                  key={e.exceptionId}
+                  className="flex items-center gap-3 rounded-md border p-3 text-sm"
+                >
+                  <Badge variant={e.isBlocked ? "destructive" : "default"}>
+                    {e.isBlocked ? "Blocked" : "Adjusted"}
+                  </Badge>
+                  <span className="font-medium">{e.date}</span>
+                  <span className="text-muted-foreground">{formatExceptionWindow(e)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setClash(null)}>
+              Remove availability
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={saving || applyingTemplate}
+              onClick={() => void clash?.onResolve()}
+            >
+              Remove exception
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Exception overlaps a booked session */}
+      <Dialog open={bookingBlock !== null} onOpenChange={(open) => !open && setBookingBlock(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <TriangleAlert className="h-5 w-5 text-destructive" />
+              Slot already booked
+            </DialogTitle>
+            <DialogDescription>{bookingBlock}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button onClick={() => setBookingBlock(null)}>Got it</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
