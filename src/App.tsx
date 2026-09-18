@@ -16,9 +16,9 @@ import WebsitePage from "@/pages/Website";
 
 function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-muted/40">
+    <div className="flex min-h-screen flex-col bg-muted/40">
       <Navbar />
-      <main className="mx-auto w-[80%] p-6">{children}</main>
+      <main className="mx-auto flex w-[90%] flex-1 flex-col p-3">{children}</main>
     </div>
   );
 }

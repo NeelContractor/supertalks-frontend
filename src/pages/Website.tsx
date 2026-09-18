@@ -96,6 +96,9 @@ function labelFor(key: string): string {
 // Fields that are controlled by the builder itself and never editable inline.
 const HIDDEN_FIELD_KEYS = new Set(["ctaLink", "buttonLink", "logoAlt", "imageAlt", "alt"]);
 
+// Fields that must stay fixed for the astrologer (locked everywhere).
+const LOCKED_FIELD_KEYS = new Set(["ctaLabel"]);
+
 const GOOGLE_FONTS = [
   "Inter", "Roboto", "Open Sans", "Lato", "Montserrat", "Poppins",
   "Source Sans 3", "Nunito", "Raleway", "Work Sans", "Quicksand",
@@ -1327,6 +1330,7 @@ function FieldControl({
   onAddItem?: (field: string) => void;
   onRemoveItem?: (field: string, index: number) => void;
 }) {
+  const readonly = LOCKED_FIELD_KEYS.has(fieldKey);
   if (field.type === "array") {
     const items = Array.isArray(value) ? (value as Record<string, unknown>[]) : [];
     const itemProps = field.itemProps ?? {};
@@ -1405,6 +1409,7 @@ function FieldControl({
         <div className="space-y-1">
           <Textarea
             rows={4}
+            disabled={readonly}
             value={typeof value === "string" ? value : (field.default as string) ?? ""}
             onChange={(e) => onPatch(e.target.value)}
           />
@@ -1418,9 +1423,9 @@ function FieldControl({
       ) : field.type === "select" && field.options ? (
         <Select
           value={typeof value === "string" ? value : (field.default as string) ?? ""}
-          onValueChange={(v) => onPatch(v)}
+          onValueChange={readonly ? () => {} : (v) => onPatch(v)}
         >
-          <SelectTrigger>
+          <SelectTrigger disabled={readonly}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -1437,6 +1442,7 @@ function FieldControl({
           min={field.min}
           max={field.max}
           step={field.step}
+          disabled={readonly}
           value={typeof value === "number" ? value : (field.default as number) ?? 1}
           onChange={(e) => onPatch(parseFloat(e.target.value) || 0)}
         />
@@ -1444,6 +1450,7 @@ function FieldControl({
         <Input
           type="color"
           className="h-9 w-12 p-1"
+          disabled={readonly}
           value={
             typeof value === "string" && /^#/.test(value)
               ? value
@@ -1455,10 +1462,16 @@ function FieldControl({
         <Input
           type="text"
           placeholder={labelFor(fieldKey)}
+          disabled={readonly}
           value={typeof value === "string" ? value : (field.default as string) ?? ""}
           onChange={(e) => onPatch(e.target.value)}
         />
       )}
+      {readonly ? (
+        <p className="flex items-center gap-1 text-xs text-muted-foreground">
+          <Lock className="h-3 w-3" /> Locked — managed automatically.
+        </p>
+      ) : null}
       {field.type === "image" ? (
         <p className="text-xs text-muted-foreground">Paste an image URL.</p>
       ) : null}

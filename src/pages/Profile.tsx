@@ -358,7 +358,7 @@ export default function ProfilePage() {
       </div>
 
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList>
+        <TabsList className="flex w-full justify-start overflow-x-auto md:w-auto md:justify-center md:overflow-visible">
           <TabsTrigger value="bio">Bio & Info</TabsTrigger>
           <TabsTrigger value="pricing">Pricing</TabsTrigger>
           <TabsTrigger value="availability">Availability</TabsTrigger>

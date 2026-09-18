@@ -141,7 +141,7 @@ export default function QuestionsPage() {
           setPage(0);
         }}
       >
-        <TabsList>
+        <TabsList className="flex w-full justify-start overflow-x-auto md:w-auto md:justify-center md:overflow-visible">
           <TabsTrigger value="all">All ({statusCounts.all})</TabsTrigger>
           <TabsTrigger value="Queued">Pending ({statusCounts.Queued})</TabsTrigger>
           <TabsTrigger value="Answered">Answered ({statusCounts.Answered})</TabsTrigger>
