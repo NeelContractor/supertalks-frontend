@@ -55,6 +55,7 @@ import {
   Check,
   SquareArrowOutUpRight,
   Lock,
+  Upload,
 } from "lucide-react"; 
 
 const SITE_ORIGIN = "http://localhost:3002";
@@ -1367,7 +1368,20 @@ function FieldControl({
             {Object.entries(itemProps).map(([itemKey, itemField]) => (
               <div key={itemKey} className="space-y-1.5">
                 <Label className="text-xs">{labelFor(itemKey)}</Label>
-                {itemField.type === "textarea" ? (
+                {itemField.type === "image" ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => {
+                      // TODO: wire up a real image upload.
+                    }}
+                  >
+                    <Upload className="h-3.5 w-3.5" />
+                    Upload Image
+                  </Button>
+                ) : itemField.type === "textarea" ? (
                   <Textarea
                     rows={3}
                     value={typeof item[itemKey] === "string" ? (item[itemKey] as string) : ""}
@@ -1405,7 +1419,28 @@ function FieldControl({
   return (
     <div className="space-y-1.5">
       <Label>{labelFor(fieldKey)}</Label>
-      {field.type === "textarea" ? (
+      {field.type === "image" ? (
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              // TODO: wire up a real image upload.
+            }}
+          >
+            <Upload className="h-3.5 w-3.5" />
+            Upload Image
+          </Button>
+          {typeof value === "string" && value ? (
+            <span className="truncate text-xs text-muted-foreground" title={value}>
+              {value}
+            </span>
+          ) : (
+            <span className="text-xs text-muted-foreground">No image set.</span>
+          )}
+        </div>
+      ) : field.type === "textarea" ? (
         <div className="space-y-1">
           <Textarea
             rows={4}
@@ -1471,9 +1506,6 @@ function FieldControl({
         <p className="flex items-center gap-1 text-xs text-muted-foreground">
           <Lock className="h-3 w-3" /> Locked — managed automatically.
         </p>
-      ) : null}
-      {field.type === "image" ? (
-        <p className="text-xs text-muted-foreground">Paste an image URL.</p>
       ) : null}
     </div>
   );
