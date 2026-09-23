@@ -99,17 +99,9 @@ The frontend talks to the backend at `http://localhost:3000` (`src/lib/api.ts`).
 > The `GET /bookings` and `GET /questions` list endpoints are paginated server-side via `limit` (default 10, max 100) and `offset` query params. Responses include a `total` and per-status `counts` object, used by the dashboard stats cards and the per-tab count badges. List pages use the shadcn pagination control to page through results.
 
 # TODO 
-
-- session expire getting very frequently
-- add logic to unreject the rejected questions (not sure, depends on the rejected logic, if the astrologer reject and user gets a refund then dont implement this)
-
-- add image input box on customize tab (add a separate section for this website on cloudinary)
-- pay integration (both on success and error ui and logic), and 
 - rejected logic (what happens when astrologer rejects a booking or question?)
 
 
-- phonepe integation
-- cloudiary integration
-- production db integration
-
-- fix the logo spacing in the navbar and footer
+- phonepe integation - test mode working
+- cloudiary integration - done
+- production db integration - todo
