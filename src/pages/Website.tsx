@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { astrologerApi } from "@/lib/api";
+import { uploadImageToCloudinary } from "@/lib/cloudinary";
 import { useStore } from "@/store";
 import type {
   FieldStyle,
@@ -56,6 +57,7 @@ import {
   SquareArrowOutUpRight,
   Lock,
   Upload,
+  Loader2,
 } from "lucide-react"; 
 
 const SITE_ORIGIN = "http://localhost:3002";
@@ -631,12 +633,13 @@ export default function WebsitePage() {
   };
 
   const handleSave = async () => {
-    if (!site || !schema) return;
+    const currentSite = siteRef.current ?? site;
+    if (!currentSite || !schema) return;
     setSaving(true);
     try {
       await astrologerApi.saveTemplateData({
         templateId: templateId || undefined,
-        templateData: toStored(site),
+        templateData: toStored(currentSite),
       });
       setDirty(false);
       setSavedAt(new Date());
@@ -648,6 +651,14 @@ export default function WebsitePage() {
       setSaving(false);
     }
   };
+
+  const autosave = useCallback(() => {
+    // Fire after the current render settles so siteRef.current includes the
+    // just-applied patch (image URL) before we persist.
+    window.setTimeout(() => {
+      void handleSave();
+    }, 0);
+  }, [handleSave]);
 
   if (loading) {
     return (
@@ -891,6 +902,7 @@ export default function WebsitePage() {
                 section={selectedSection}
                 sectionField={schema.sections.find((f) => f.id === selectedSection.id)}
                 activeFieldKey={activeFieldKey}
+                // onAutosave={autosave}
                 onPatch={(key, value) => {
                   setActiveFieldKey(null);
                   patchSectionProp(selectedSection.id, key, value);
@@ -1191,6 +1203,7 @@ function SectionPanel({
   section,
   sectionField,
   activeFieldKey,
+  // onAutosave,
   onPatch,
   onItemField,
   onAddItem,
@@ -1199,6 +1212,7 @@ function SectionPanel({
   section: SiteSectionDoc;
   sectionField: { id: string; props: Record<string, TemplateField> } | undefined;
   activeFieldKey?: string | null;
+  // onAutosave: () => void;
   onPatch: (key: string, value: unknown) => void;
   onItemField: (field: string, index: number, key: string, value: unknown) => void;
   onAddItem: (field: string) => void;
@@ -1300,6 +1314,7 @@ function SectionPanel({
                   fieldKey={key}
                   field={field}
                   value={section.props[key]}
+                  // onAutosave={onAutosave}
                   onPatch={(v) => onPatch(key, v)}
                   onItemField={onItemField}
                   onAddItem={onAddItem}
@@ -1314,10 +1329,77 @@ function SectionPanel({
   );
 }
 
+function ImageUploadControl({
+  onPatch,
+  // onAutosave,
+  currentUrl,
+  compact,
+}: {
+  onPatch: (url: string) => void;
+  // onAutosave?: () => void;
+  currentUrl?: string;
+  compact?: boolean;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+
+  const handleFile = async (file: File | undefined) => {
+    if (!file) return;
+    setUploading(true);
+    try {
+      const url = await uploadImageToCloudinary(file);
+      onPatch(url);
+      toast.success("Image uploaded");
+      // onAutosave?.();
+    } catch (err) {
+      console.error("Image upload error:", err);
+      toast.error(err instanceof Error ? err.message : "Image upload failed");
+    } finally {
+      setUploading(false);
+      if (inputRef.current) inputRef.current.value = "";
+    }
+  };
+
+  return (
+    <>
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        className="w-full"
+        onClick={() => inputRef.current?.click()}
+        disabled={uploading}
+      >
+        {uploading ? (
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        ) : (
+          <Upload className="h-3.5 w-3.5" />
+        )}
+        {uploading ? "Uploading..." : "Upload Image"}
+      </Button>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => handleFile(e.target.files?.[0])}
+      />
+      {compact ? null : typeof currentUrl === "string" && currentUrl ? (
+        <span className="truncate text-xs text-muted-foreground" title={currentUrl}>
+          {currentUrl}
+        </span>
+      ) : (
+        <span className="text-xs text-muted-foreground">No image set.</span>
+      )}
+    </>
+  );
+}
+
 function FieldControl({
   fieldKey,
   field,
   value,
+  // onAutosave,
   onPatch,
   onItemField,
   onAddItem,
@@ -1326,6 +1408,7 @@ function FieldControl({
   fieldKey: string;
   field: TemplateField;
   value: unknown;
+  // onAutosave: () => void;
   onPatch: (value: unknown) => void;
   onItemField?: (field: string, index: number, key: string, value: unknown) => void;
   onAddItem?: (field: string) => void;
@@ -1369,18 +1452,14 @@ function FieldControl({
               <div key={itemKey} className="space-y-1.5">
                 <Label className="text-xs">{labelFor(itemKey)}</Label>
                 {itemField.type === "image" ? (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className="w-full"
-                    onClick={() => {
-                      // TODO: wire up a real image upload.
-                    }}
-                  >
-                    <Upload className="h-3.5 w-3.5" />
-                    Upload Image
-                  </Button>
+                  <ImageUploadControl
+                    compact
+                    // onAutosave={onAutosave}
+                    currentUrl={
+                      typeof item[itemKey] === "string" ? (item[itemKey] as string) : undefined
+                    }
+                    onPatch={(url) => onItemField?.(fieldKey, index, itemKey, url)}
+                  />
                 ) : itemField.type === "textarea" ? (
                   <Textarea
                     rows={3}
@@ -1420,26 +1499,11 @@ function FieldControl({
     <div className="space-y-1.5">
       <Label>{labelFor(fieldKey)}</Label>
       {field.type === "image" ? (
-        <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={() => {
-              // TODO: wire up a real image upload.
-            }}
-          >
-            <Upload className="h-3.5 w-3.5" />
-            Upload Image
-          </Button>
-          {typeof value === "string" && value ? (
-            <span className="truncate text-xs text-muted-foreground" title={value}>
-              {value}
-            </span>
-          ) : (
-            <span className="text-xs text-muted-foreground">No image set.</span>
-          )}
-        </div>
+        <ImageUploadControl
+          // onAutosave={onAutosave}
+          currentUrl={typeof value === "string" ? value : undefined}
+          onPatch={onPatch}
+        />
       ) : field.type === "textarea" ? (
         <div className="space-y-1">
           <Textarea

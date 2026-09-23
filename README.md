@@ -106,3 +106,10 @@ The frontend talks to the backend at `http://localhost:3000` (`src/lib/api.ts`).
 - add image input box on customize tab (add a separate section for this website on cloudinary)
 - pay integration (both on success and error ui and logic), and 
 - rejected logic (what happens when astrologer rejects a booking or question?)
+
+
+- phonepe integation
+- cloudiary integration
+- production db integration
+
+- fix the logo spacing in the navbar and footer
