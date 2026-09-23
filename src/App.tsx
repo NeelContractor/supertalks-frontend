@@ -13,6 +13,7 @@ import QuestionChatPage from "@/pages/QuestionChat";
 import BookingsPage from "@/pages/Bookings";
 import ProfilePage from "@/pages/Profile";
 import WebsitePage from "@/pages/Website";
+import Register from "./pages/Register";
 
 function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -30,6 +31,7 @@ export function App() {
         <TooltipProvider delayDuration={100}>
           <Toaster position="top-right" richColors />
           <Routes>
+          <Route path="/register" element={<Register />} />
           <Route path="/signin" element={<SignInPage />} />
           <Route path="/signup" element={<SignUpPage />} />
           <Route
