@@ -101,7 +101,14 @@ The frontend talks to the backend at `http://localhost:3000` (`src/lib/api.ts`).
 # TODO 
 - rejected logic (what happens when astrologer rejects a booking or question?)
 
+- when the payment gateway redirects back it should scroll or be take the same section before the redirect
+- customize admin dashboard for astrologer and client
+- fix client chat window ui the input box is getting to bottom to scroll and My Questions etc things are taking a lot of space
 
 - phonepe integation - test mode working
 - cloudiary integration - done
 - production db integration - todo
+
+- Provider and Customer logic to switch between client and astrologer can be confusing
+
+- at last remove the docker postgres logic before pushing to prod

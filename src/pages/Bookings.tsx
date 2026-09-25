@@ -30,6 +30,8 @@ import { CalendarDays, Clock, CheckCircle, XCircle, ChevronLeft, ChevronRight } 
 const PAGE_SIZE = 10;
 
 export default function BookingsPage() {
+  const isClient = useStore((s) => s.viewAs) === "client";
+  const viewAs = useStore((s) => s.viewAs);
   const [searchParams, setSearchParams] = useSearchParams();
   const [filter, setFilter] = useState("all");
   const [page, setPage] = useState(0);
@@ -64,7 +66,7 @@ export default function BookingsPage() {
   useEffect(() => {
     void load(page);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filter, page]);
+  }, [filter, page, viewAs]);
 
   useEffect(() => {
     if (!loading && highlightedId) {
@@ -152,8 +154,12 @@ export default function BookingsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Bookings</h1>
-        <p className="text-muted-foreground">Manage your client bookings and schedule</p>
+        <h1 className="text-2xl font-bold">{isClient ? "My Bookings" : "Bookings"}</h1>
+        <p className="text-muted-foreground">
+          {isClient
+            ? "Track your booked sessions with astrologers"
+            : "Manage your client bookings and schedule"}
+        </p>
       </div>
 
       <Tabs
@@ -189,7 +195,9 @@ export default function BookingsPage() {
                 >
                   <CardHeader className="flex flex-row items-start justify-between gap-4 pb-2">
                     <div className="space-y-1">
-                      <CardTitle className="text-base">{b.client?.name ?? "Client"}</CardTitle>
+                      <CardTitle className="text-base">
+                        {isClient ? b.astrologer?.user.name ?? "Astrologer" : b.client?.name ?? "Client"}
+                      </CardTitle>
                       <div className="flex items-center gap-3 text-sm text-muted-foreground">
                         <span className="flex items-center gap-1">
                           <Clock className="h-3.5 w-3.5" />
@@ -221,31 +229,47 @@ export default function BookingsPage() {
                     )}
                     {isUpcoming(b) && (
                       <div className="flex gap-2 mt-3">
-                        <Button size="sm" onClick={() => handleComplete(b)} disabled={submitting}>
-                          <CheckCircle className="h-3.5 w-3.5" />
-                          Complete
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            setRescheduleDialog(b);
-                            setNewDateTime("");
-                          }}
-                        >
-                          Reschedule
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={() => {
-                            setCancelDialog(b);
-                            setCancelReason("");
-                          }}
-                        >
-                          <XCircle className="h-3.5 w-3.5" />
-                          Cancel
-                        </Button>
+                        {isClient ? (
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => {
+                              setCancelDialog(b);
+                              setCancelReason("");
+                            }}
+                          >
+                            <XCircle className="h-3.5 w-3.5" />
+                            Cancel Booking
+                          </Button>
+                        ) : (
+                          <>
+                            <Button size="sm" onClick={() => handleComplete(b)} disabled={submitting}>
+                              <CheckCircle className="h-3.5 w-3.5" />
+                              Complete
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setRescheduleDialog(b);
+                                setNewDateTime("");
+                              }}
+                            >
+                              Reschedule
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => {
+                                setCancelDialog(b);
+                                setCancelReason("");
+                              }}
+                            >
+                              <XCircle className="h-3.5 w-3.5" />
+                              Cancel
+                            </Button>
+                          </>
+                        )}
                       </div>
                     )}
                     <p className="text-xs text-muted-foreground mt-3">
@@ -325,8 +349,11 @@ export default function BookingsPage() {
           <div className="space-y-4">
             {cancelDialog && (
               <p className="text-sm rounded-md bg-muted p-3">
-                Booking with {cancelDialog.client?.name ?? "Client"} on{" "}
-                {new Date(cancelDialog.startAt).toLocaleString()}
+                Booking with{" "}
+                {isClient
+                  ? cancelDialog.astrologer?.user.name ?? "Astrologer"
+                  : cancelDialog.client?.name ?? "Client"}{" "}
+                on {new Date(cancelDialog.startAt).toLocaleString()}
               </p>
             )}
             <div className="space-y-2">

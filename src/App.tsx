@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/auth";
+import { useStore } from "@/store";
 import { ProtectedRoute, AstrologerRoute } from "@/components/ProtectedRoute";
 import { Navbar } from "@/components/Navbar";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -9,6 +10,7 @@ import SignUpPage from "@/pages/SignUp";
 import OnboardPage from "@/pages/Onboard";
 import DashboardPage from "@/pages/Dashboard";
 import QuestionsPage from "@/pages/Questions";
+import ClientQuestionsPage from "@/pages/ClientQuestions";
 import QuestionChatPage from "@/pages/QuestionChat";
 import BookingsPage from "@/pages/Bookings";
 import ProfilePage from "@/pages/Profile";
@@ -22,6 +24,11 @@ function DashboardLayout({ children }: { children: React.ReactNode }) {
       <main className="mx-auto flex w-[90%] flex-1 flex-col p-3">{children}</main>
     </div>
   );
+}
+
+function QuestionsRoute() {
+  const viewAs = useStore((s) => s.viewAs);
+  return viewAs === "client" ? <ClientQuestionsPage /> : <QuestionsPage />;
 }
 
 export function App() {
@@ -45,41 +52,41 @@ export function App() {
           <Route
             path="/dashboard"
             element={
-              <AstrologerRoute>
+              <ProtectedRoute>
                 <DashboardLayout>
                   <DashboardPage />
                 </DashboardLayout>
-              </AstrologerRoute>
+              </ProtectedRoute>
             }
           />
           <Route
             path="/questions"
             element={
-              <AstrologerRoute>
+              <ProtectedRoute>
                 <DashboardLayout>
-                  <QuestionsPage />
+                  <QuestionsRoute />
                 </DashboardLayout>
-              </AstrologerRoute>
+              </ProtectedRoute>
             }
           />
           <Route
             path="/questions/:id"
             element={
-              <AstrologerRoute>
+              <ProtectedRoute>
                 <DashboardLayout>
                   <QuestionChatPage />
                 </DashboardLayout>
-              </AstrologerRoute>
+              </ProtectedRoute>
             }
           />
           <Route
             path="/bookings"
             element={
-              <AstrologerRoute>
+              <ProtectedRoute>
                 <DashboardLayout>
                   <BookingsPage />
                 </DashboardLayout>
-              </AstrologerRoute>
+              </ProtectedRoute>
             }
           />
           <Route

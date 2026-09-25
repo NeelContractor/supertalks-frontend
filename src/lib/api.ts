@@ -13,10 +13,14 @@ import type {
   PaginatedBookings,
   PaginatedQuestions,
   AstrologerStats,
+  ViewAs,
   WebsiteTemplate,
   MySite,
   SiteDocument,
   StoredTemplateData,
+  SendQuestionMessageResult,
+  PaymentOutcome,
+  InitiatePaymentResult,
 } from "@/types";
 
 type HttpMethod = "GET" | "POST" | "PATCH" | "DELETE";
@@ -169,6 +173,30 @@ export const authApi = {
   },
 };
 
+// Users API (works for any role: Client or Astrologer)
+export const usersApi = {
+  getMe: () => api<{ user: User }>("/me"),
+
+  getStats: (role?: ViewAs) =>
+    api<AstrologerStats>(
+      role ? `/me/stats?role=${role}` : "/me/stats",
+    ),
+};
+
+// Payments API (used by the client flow when a paid message/booking needs checkout)
+export const paymentsApi = {
+  initiate: (paymentId: string, returnTo: string) =>
+    api<InitiatePaymentResult>(`/payments/${paymentId}/initiate`, {
+      method: "POST",
+      body: { returnTo },
+    }),
+
+  get: (paymentId: string) => api<PaymentOutcome>(`/payments/${paymentId}`),
+
+  complete: (paymentId: string) =>
+    api<PaymentOutcome>(`/payments/${paymentId}/complete`, { method: "POST" }),
+};
+
 // Astrologer API
 export const astrologerApi = {
   onboard: () =>
@@ -293,20 +321,21 @@ export const templatesApi = {
 
 function buildListPath(
   base: string,
-  params: { status?: string; limit?: number; offset?: number },
+  params: { status?: string; limit?: number; offset?: number; role?: ViewAs },
 ): string {
   const qs = new URLSearchParams();
   if (params.status) qs.set("status", params.status);
   if (params.limit !== undefined) qs.set("limit", String(params.limit));
   if (params.offset !== undefined) qs.set("offset", String(params.offset));
+  if (params.role) qs.set("role", params.role);
   const str = qs.toString();
   return str ? `${base}?${str}` : base;
 }
 
 // Bookings API
 export const bookingsApi = {
-  list: (status?: string, limit?: number, offset?: number) =>
-    api<PaginatedBookings>(buildListPath("/bookings", { status, limit, offset })),
+  list: (status?: string, limit?: number, offset?: number, role?: ViewAs) =>
+    api<PaginatedBookings>(buildListPath("/bookings", { status, limit, offset, role })),
 
   get: (id: string) => api<{ booking: Booking }>(`/bookings/${id}`),
 
@@ -330,8 +359,8 @@ export const bookingsApi = {
 
 // Questions API
 export const questionsApi = {
-  list: (status?: string, limit?: number, offset?: number) =>
-    api<PaginatedQuestions>(buildListPath("/questions", { status, limit, offset })),
+  list: (status?: string, limit?: number, offset?: number, role?: ViewAs) =>
+    api<PaginatedQuestions>(buildListPath("/questions", { status, limit, offset, role })),
 
   get: (id: string) => api<{ question: Question }>(`/questions/${id}`),
 
@@ -355,7 +384,7 @@ export const questionsApi = {
   messages: (id: string) => api<QuestionThread>(`/questions/${id}/messages`),
 
   sendMessage: (id: string, body: string) =>
-    api<{ message: QuestionMessage; question: Question }>(`/questions/${id}/messages`, {
+    api<SendQuestionMessageResult>(`/questions/${id}/messages`, {
       method: "POST",
       body: { body },
     }),

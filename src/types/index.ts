@@ -7,6 +7,11 @@ export interface User {
   profileImageUrl?: string;
 }
 
+/** Which side of the dashboard a user is looking at. Astrologers can have
+ * both: their provider view ("astrologer") and their own customer view
+ * ("client") for booking/asking other astrologers. */
+export type ViewAs = "client" | "astrologer";
+
 export interface AstrologerProfile {
   id: string;
   userId: string;
@@ -109,6 +114,44 @@ export interface QuestionMessage {
 export interface QuestionThread {
   question: Question;
   messages: QuestionMessage[];
+}
+
+export type SendQuestionMessageResult =
+  | { requiresPayment: true; payment: PaymentIntent; question: Question }
+  | { requiresPayment: false; message: QuestionMessage; question: Question };
+
+export interface PaymentIntent {
+  id: string;
+  amountPaise: number;
+  currency: string;
+  clientDetails?: Record<string, unknown> | null;
+}
+
+export interface CompletedPayment {
+  id: string;
+  amountPaise: number;
+  currency: string;
+  status: string;
+  provider?: string;
+  purpose?: string;
+}
+
+export interface PaymentOutcome {
+  payment: CompletedPayment;
+  message?: QuestionMessage | null;
+  question?: Question | null;
+  questions?: Question[] | null;
+  bookings?: Booking[] | null;
+}
+
+export interface InitiatePaymentResult {
+  mode: "mock" | "gateway";
+  redirectUrl: string | null;
+  payment: CompletedPayment;
+  message?: QuestionMessage | null;
+  question?: Question | null;
+  questions?: Question[] | null;
+  bookings?: Booking[] | null;
 }
 
 export interface BookingCounts {

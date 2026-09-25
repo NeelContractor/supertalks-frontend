@@ -8,6 +8,7 @@ import type {
   Question,
   QuestionCounts,
   AstrologerStats,
+  ViewAs,
   AvailabilityRule,
   AvailabilityException,
   QuestionMessage,
@@ -20,6 +21,7 @@ import {
   bookingsApi,
   questionsApi,
   templatesApi,
+  usersApi,
   setTokens,
   clearTokens,
   getAccessToken,
@@ -52,6 +54,11 @@ interface StoreState {
   profile: AstrologerProfile | null;
   authLoading: boolean;
   authHydrated: boolean;
+
+  // Which side of the dashboard is shown. Astrologers can flip between their
+  // provider view ("astrologer") and their own customer view ("client");
+  // client-only users always see "client".
+  viewAs: ViewAs;
 
   // ---- dashboard stats ----------------------------------------------------
   stats: AstrologerStats | null;
@@ -97,6 +104,7 @@ interface StoreState {
   onboard: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   applyProfile: (profile: AstrologerProfile) => void;
+  setViewAs: (viewAs: ViewAs) => void;
 
   loadStats: (force?: boolean) => Promise<AstrologerStats | null>;
   loadBookings: (filter: string, page: number, force?: boolean) => Promise<BookingPage>;
@@ -140,6 +148,22 @@ function decodeJwtPayload(token: string): { sub?: string; role?: string } | null
   }
 }
 
+const VIEW_AS_KEY = "viewAs";
+
+function getStoredViewAs(): ViewAs | null {
+  try {
+    const raw = localStorage.getItem(VIEW_AS_KEY);
+    return raw === "client" || raw === "astrologer" ? raw : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Only astrologers can see the provider side; everyone else is a customer. */
+function defaultViewAs(role: string | undefined): ViewAs {
+  return role === "Astrologer" ? (getStoredViewAs() ?? "astrologer") : "client";
+}
+
 const AVAILABILITY_TTL = 30_000;
 const SITE_TTL = 30_000;
 const STATS_TTL = 60_000;
@@ -150,6 +174,7 @@ export const useStore = create<StoreState>((set, get) => ({
   profile: null,
   authLoading: true,
   authHydrated: false,
+  viewAs: "client",
 
   // ---- dashboard stats ----------------------------------------------------
   stats: null,
@@ -202,7 +227,7 @@ export const useStore = create<StoreState>((set, get) => ({
       try {
         const data = await astrologerApi.getMe();
         storeUser(data.user);
-        set({ user: data.user, profile: data.profile });
+        set({ user: data.user, profile: data.profile, viewAs: defaultViewAs(data.user.role) });
       } catch {
         const stored = getStoredUser();
         if (!stored) {
@@ -211,9 +236,16 @@ export const useStore = create<StoreState>((set, get) => ({
         }
       }
     } else {
-      const stored = getStoredUser();
-      if (!stored) {
-        set({ user: null });
+      try {
+        const data = await usersApi.getMe();
+        storeUser(data.user);
+        set({ user: data.user, profile: null, viewAs: defaultViewAs(data.user.role) });
+      } catch {
+        const stored = getStoredUser();
+        if (!stored) {
+          clearTokens();
+          storeUser(null);
+        }
       }
     }
 
@@ -224,7 +256,7 @@ export const useStore = create<StoreState>((set, get) => ({
     const data = await authApi.signin({ identifier, password });
     setTokens(data.accessToken, data.refreshToken);
     storeUser(data.user);
-    set({ user: data.user });
+    set({ user: data.user, viewAs: defaultViewAs(data.user.role) });
     if (data.user.role === "Astrologer") {
       try {
         const profileData = await astrologerApi.getMe();
@@ -232,6 +264,8 @@ export const useStore = create<StoreState>((set, get) => ({
       } catch {
         // profile might not exist yet (edge case)
       }
+    } else {
+      set({ profile: null });
     }
   },
 
@@ -239,7 +273,7 @@ export const useStore = create<StoreState>((set, get) => ({
     const data = await authApi.register(regData);
     setTokens(data.accessToken, data.refreshToken);
     storeUser(data.user);
-    set({ user: data.user });
+    set({ user: data.user, viewAs: "client" });
   },
 
   signout: async () => {
@@ -251,6 +285,7 @@ export const useStore = create<StoreState>((set, get) => ({
       set({
         user: null,
         profile: null,
+        viewAs: "client",
         stats: null,
         statsLoadedAt: null,
         bookingPages: {},
@@ -272,8 +307,25 @@ export const useStore = create<StoreState>((set, get) => ({
   onboard: async () => {
     const data = await astrologerApi.onboard();
     localStorage.setItem("accessToken", data.accessToken);
+    localStorage.setItem(VIEW_AS_KEY, "astrologer");
     storeUser(data.user);
-    set({ user: data.user, profile: data.profile });
+    set({ user: data.user, profile: data.profile, viewAs: "astrologer" });
+  },
+
+  setViewAs: (viewAs) => {
+    if (viewAs === get().viewAs) return;
+    localStorage.setItem(VIEW_AS_KEY, viewAs);
+    // Per-view data must not bleed between the two sides, so drop the caches
+    // and let the active page refetch from the new side.
+    set({
+      viewAs,
+      stats: null,
+      statsLoadedAt: null,
+      bookingPages: {},
+      bookingCounts: null,
+      questionPages: {},
+      questionCounts: null,
+    });
   },
 
   refreshProfile: async () => {
@@ -296,7 +348,7 @@ export const useStore = create<StoreState>((set, get) => ({
     }
     set({ statsLoading: true });
     try {
-      const data = await astrologerApi.getStats();
+      const data = await usersApi.getStats(get().viewAs);
       set({ stats: data, statsLoadedAt: Date.now() });
       return data;
     } catch {
@@ -317,7 +369,7 @@ export const useStore = create<StoreState>((set, get) => ({
     try {
       const status = filter === "all" ? undefined : filter;
       const offset = page * 10;
-      const data = await bookingsApi.list(status, 10, offset);
+      const data = await bookingsApi.list(status, 10, offset, get().viewAs);
       const pageData: BookingPage = { items: data.bookings, total: data.total, loadedAt: Date.now() };
       set((state) => ({
         bookingPages: { ...state.bookingPages, [key]: pageData },
@@ -340,7 +392,7 @@ export const useStore = create<StoreState>((set, get) => ({
     try {
       const status = filter === "all" ? undefined : filter;
       const offset = page * 10;
-      const data = await questionsApi.list(status, 10, offset);
+      const data = await questionsApi.list(status, 10, offset, get().viewAs);
       const pageData: QuestionPage = { items: data.questions, total: data.total, loadedAt: Date.now() };
       set((state) => ({
         questionPages: { ...state.questionPages, [key]: pageData },
