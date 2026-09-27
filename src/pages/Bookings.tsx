@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useStore } from "@/store";
 import { bookingsApi } from "@/lib/api";
-import type { Booking } from "@/types";
+import type { Booking, SortOrder } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,6 +19,13 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Pagination,
   PaginationContent,
   PaginationItem,
@@ -34,8 +41,9 @@ export default function BookingsPage() {
   const viewAs = useStore((s) => s.viewAs);
   const [searchParams, setSearchParams] = useSearchParams();
   const [filter, setFilter] = useState("all");
+  const [sort, setSort] = useState<SortOrder>("latest");
   const [page, setPage] = useState(0);
-  const pageData = useStore((s) => s.bookingPages[`${filter}:${page}`]);
+  const pageData = useStore((s) => s.bookingPages[`${filter}:${sort}:${page}`]);
   const bookings = pageData?.items ?? [];
   const total = pageData?.total ?? 0;
   const counts = useStore((s) => s.bookingCounts);
@@ -50,7 +58,7 @@ export default function BookingsPage() {
 
   const load = useCallback(async (targetPage: number, force = false) => {
     try {
-      const data = await loadBookings(filter, targetPage, force);
+      const data = await loadBookings(filter, targetPage, sort, force);
       const highlightId = searchParams.get("id");
       if (highlightId && targetPage === 0) {
         setHighlightedId(highlightId);
@@ -61,12 +69,12 @@ export default function BookingsPage() {
       toast.error("Failed to load bookings");
       return null;
     }
-  }, [filter, loadBookings, searchParams, setSearchParams]);
+  }, [filter, sort, loadBookings, searchParams, setSearchParams]);
 
   useEffect(() => {
     void load(page);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filter, page, viewAs]);
+  }, [filter, sort, page, viewAs]);
 
   useEffect(() => {
     if (!loading && highlightedId) {
@@ -169,11 +177,29 @@ export default function BookingsPage() {
           setPage(0);
         }}
       >
-        <TabsList>
-          <TabsTrigger value="all">All ({statusCounts.all})</TabsTrigger>
-          <TabsTrigger value="Confirmed">Upcoming ({statusCounts.Confirmed})</TabsTrigger>
-          <TabsTrigger value="Completed">Completed ({statusCounts.Completed})</TabsTrigger>
-        </TabsList>
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <TabsList>
+            <TabsTrigger value="all">All ({statusCounts.all})</TabsTrigger>
+            <TabsTrigger value="Confirmed">Upcoming ({statusCounts.Confirmed})</TabsTrigger>
+            <TabsTrigger value="Completed">Completed ({statusCounts.Completed})</TabsTrigger>
+          </TabsList>
+
+          <Select
+            value={sort}
+            onValueChange={(v) => {
+              setSort(v as SortOrder);
+              setPage(0);
+            }}
+          >
+            <SelectTrigger className="w-full md:w-[140px]" aria-label="Sort bookings">
+              <SelectValue placeholder="Sort" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="latest">Latest</SelectItem>
+              <SelectItem value="oldest">Oldest</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
 
         <TabsContent value={filter}>
           {loading ? (

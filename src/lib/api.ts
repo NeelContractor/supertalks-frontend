@@ -14,6 +14,7 @@ import type {
   PaginatedQuestions,
   AstrologerStats,
   ViewAs,
+  SortOrder,
   WebsiteTemplate,
   AstrologerApplication,
   MySite,
@@ -338,21 +339,22 @@ export const templatesApi = {
 
 function buildListPath(
   base: string,
-  params: { status?: string; limit?: number; offset?: number; role?: ViewAs },
+  params: { status?: string; limit?: number; offset?: number; role?: ViewAs; sort?: SortOrder },
 ): string {
   const qs = new URLSearchParams();
   if (params.status) qs.set("status", params.status);
   if (params.limit !== undefined) qs.set("limit", String(params.limit));
   if (params.offset !== undefined) qs.set("offset", String(params.offset));
   if (params.role) qs.set("role", params.role);
+  if (params.sort) qs.set("sort", params.sort);
   const str = qs.toString();
   return str ? `${base}?${str}` : base;
 }
 
 // Bookings API
 export const bookingsApi = {
-  list: (status?: string, limit?: number, offset?: number, role?: ViewAs) =>
-    api<PaginatedBookings>(buildListPath("/bookings", { status, limit, offset, role })),
+  list: (status?: string, limit?: number, offset?: number, role?: ViewAs, sort?: SortOrder) =>
+    api<PaginatedBookings>(buildListPath("/bookings", { status, limit, offset, role, sort })),
 
   get: (id: string) => api<{ booking: Booking }>(`/bookings/${id}`),
 
@@ -376,8 +378,8 @@ export const bookingsApi = {
 
 // Questions API
 export const questionsApi = {
-  list: (status?: string, limit?: number, offset?: number, role?: ViewAs) =>
-    api<PaginatedQuestions>(buildListPath("/questions", { status, limit, offset, role })),
+  list: (status?: string, limit?: number, offset?: number, role?: ViewAs, sort?: SortOrder) =>
+    api<PaginatedQuestions>(buildListPath("/questions", { status, limit, offset, role, sort })),
 
   get: (id: string) => api<{ question: Question }>(`/questions/${id}`),
 
@@ -387,16 +389,21 @@ export const questionsApi = {
       body: { answerText },
     }),
 
-  reject: (id: string, reason?: string) =>
-    api<{ question: Question }>(`/questions/${id}/reject`, {
-      method: "PATCH",
-      body: { reason },
-    }),
+  // DISABLED (commented out) for now — reject/unreject is paused. Restore
+  // together with PATCH /questions/:id/reject and /:id/unreject in
+  // backend/src/routes/questions.ts, `rejectQuestionSchema` in
+  // backend/src/types/questions.ts, and the Reject/Unreject buttons in
+  // frontend/src/pages/Questions.tsx.
+  // reject: (id: string, reason?: string) =>
+  //   api<{ question: Question }>(`/questions/${id}/reject`, {
+  //     method: "PATCH",
+  //     body: { reason },
+  //   }),
 
-  unreject: (id: string) =>
-    api<{ question: Question }>(`/questions/${id}/unreject`, {
-      method: "PATCH",
-    }),
+  // unreject: (id: string) =>
+  //   api<{ question: Question }>(`/questions/${id}/unreject`, {
+  //     method: "PATCH",
+  //   }),
 
   messages: (id: string) => api<QuestionThread>(`/questions/${id}/messages`),
 

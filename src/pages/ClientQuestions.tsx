@@ -17,7 +17,7 @@ export default function ClientQuestionsPage() {
   const threadParam = searchParams.get("thread");
 
   const stats = useStore((s) => s.stats);
-  const pageData = useStore((s) => s.questionPages["all:0"]);
+  const pageData = useStore((s) => s.questionPages["all:latest:0"]);
   const questions = useMemo(() => pageData?.items ?? [], [pageData]);
   const loading = useStore((s) => s.questionsLoading && !pageData);
   const loadQuestions = useStore((s) => s.loadQuestions);
@@ -28,7 +28,7 @@ export default function ClientQuestionsPage() {
 
   const load = useCallback(
     async (force = false) => {
-      await Promise.all([loadQuestions("all", 0, force), loadStats(force)]);
+      await Promise.all([loadQuestions("all", 0, "latest", force), loadStats(force)]);
     },
     [loadQuestions, loadStats],
   );

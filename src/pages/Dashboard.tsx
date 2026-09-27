@@ -14,8 +14,8 @@ export default function DashboardPage() {
 function AstrologerDashboard() {
   const user = useStore((s) => s.user);
   const stats = useStore((s) => s.stats);
-  const recentBookings = (useStore((s) => s.bookingPages["all:0"]?.items) ?? []).slice(0, 5);
-  const recentQuestions = (useStore((s) => s.questionPages["all:0"]?.items) ?? []).slice(0, 5);
+  const recentBookings = (useStore((s) => s.bookingPages["all:latest:0"]?.items) ?? []).slice(0, 5);
+  const recentQuestions = (useStore((s) => s.questionPages["all:latest:0"]?.items) ?? []).slice(0, 5);
   const loadStats = useStore((s) => s.loadStats);
   const loadBookings = useStore((s) => s.loadBookings);
   const loadQuestions = useStore((s) => s.loadQuestions);
@@ -172,8 +172,8 @@ function AstrologerDashboard() {
 function ClientDashboard() {
   const user = useStore((s) => s.user);
   const stats = useStore((s) => s.stats);
-  const recentBookings = (useStore((s) => s.bookingPages["all:0"]?.items) ?? []).slice(0, 5);
-  const recentQuestions = (useStore((s) => s.questionPages["all:0"]?.items) ?? []).slice(0, 5);
+  const recentBookings = (useStore((s) => s.bookingPages["all:latest:0"]?.items) ?? []).slice(0, 5);
+  const recentQuestions = (useStore((s) => s.questionPages["all:latest:0"]?.items) ?? []).slice(0, 5);
   const loadStats = useStore((s) => s.loadStats);
   const loadBookings = useStore((s) => s.loadBookings);
   const loadQuestions = useStore((s) => s.loadQuestions);

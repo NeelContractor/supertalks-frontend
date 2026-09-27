@@ -85,6 +85,10 @@ const FIELD_LABELS: Record<string, string> = {
   answer: "Answer",
   title: "Title",
   icon: "Icon",
+  // Services cards: per-service type, price and length.
+  type: "Service type",
+  pricePaise: "Price (₹)",
+  durationMinutes: "Duration (minutes)",
 };
 
 function labelFor(key: string): string {
@@ -1477,6 +1481,26 @@ function FieldControl({
                       onItemField?.(fieldKey, index, itemKey, parseFloat(e.target.value) || 0)
                     }
                   />
+                ) : itemField.type === "select" && itemField.options ? (
+                  <Select
+                    value={
+                      typeof item[itemKey] === "string"
+                        ? (item[itemKey] as string)
+                        : (itemField.default as string) ?? itemField.options[0]
+                    }
+                    onValueChange={(v) => onItemField?.(fieldKey, index, itemKey, v)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {itemField.options.map((opt) => (
+                        <SelectItem key={opt} value={opt}>
+                          {opt}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 ) : (
                   <Input
                     type="text"

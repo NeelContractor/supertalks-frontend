@@ -115,11 +115,11 @@ The frontend talks to the backend at `http://localhost:3000` (`src/lib/api.ts`).
 - at last remove the docker postgres logic before pushing to prod
 
 - signup -> register (if not register already, if register dont show this page) -> dashboard (take user details)
-- commentout reject logic for now
-- add a feature for astrologer side to enable/disable for a custom question input box for the personal website. this would give a custom question asking input box on the website for client to ask question out of the prefilled. this feature toggle button should be in profile's section on the dashboard
 - on the service section of the personal website make it a custom service as the listing that brith chart reading is a service which is a service which would be priced xyz, written next to next.
 
 - when client completed proceed to payment is completed show a sonner of success or failed. if success on show successfully payment and a dashboard button to redirect or directly redirect the user to dashbaord. --- probably done
 
-- add alert or notifications section to astro dashboard for slot after x minutes timer
+- add alert or notifications section on the navbar to astro dashboard for slot after x minutes timer (eg. you have a booking after 15 minutes with link to the slot booking)
 - username must be unique
+
+- make the services's card open a dailog box for slot booking and Your birth details and proceed to pay.

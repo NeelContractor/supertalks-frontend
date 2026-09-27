@@ -10,6 +10,7 @@ import type {
   QuestionCounts,
   AstrologerStats,
   ViewAs,
+  SortOrder,
   AvailabilityRule,
   AvailabilityException,
   QuestionMessage,
@@ -132,8 +133,8 @@ interface StoreState {
   landingPath: () => Promise<string>;
 
   loadStats: (force?: boolean) => Promise<AstrologerStats | null>;
-  loadBookings: (filter: string, page: number, force?: boolean) => Promise<BookingPage>;
-  loadQuestions: (filter: string, page: number, force?: boolean) => Promise<QuestionPage>;
+  loadBookings: (filter: string, page: number, sort?: SortOrder, force?: boolean) => Promise<BookingPage>;
+  loadQuestions: (filter: string, page: number, sort?: SortOrder, force?: boolean) => Promise<QuestionPage>;
   loadAvailability: (force?: boolean) => Promise<void>;
   setRules: (rules: AvailabilityRule[]) => void;
   setExceptions: (exceptions: AvailabilityException[]) => void;
@@ -456,8 +457,8 @@ export const useStore = create<StoreState>((set, get) => ({
   },
 
   // ---- bookings ------------------------------------------------------------
-  loadBookings: async (filter, page, force = false) => {
-    const key = `${filter}:${page}`;
+  loadBookings: async (filter, page, sort = "latest", force = false) => {
+    const key = `${filter}:${sort}:${page}`;
     const cached = get().bookingPages[key];
     if (!force && cached) {
       return cached;
@@ -466,7 +467,7 @@ export const useStore = create<StoreState>((set, get) => ({
     try {
       const status = filter === "all" ? undefined : filter;
       const offset = page * 10;
-      const data = await bookingsApi.list(status, 10, offset, get().viewAs);
+      const data = await bookingsApi.list(status, 10, offset, get().viewAs, sort);
       const pageData: BookingPage = { items: data.bookings, total: data.total, loadedAt: Date.now() };
       set((state) => ({
         bookingPages: { ...state.bookingPages, [key]: pageData },
@@ -479,8 +480,8 @@ export const useStore = create<StoreState>((set, get) => ({
   },
 
   // ---- questions -----------------------------------------------------------
-  loadQuestions: async (filter, page, force = false) => {
-    const key = `${filter}:${page}`;
+  loadQuestions: async (filter, page, sort = "latest", force = false) => {
+    const key = `${filter}:${sort}:${page}`;
     const cached = get().questionPages[key];
     if (!force && cached) {
       return cached;
@@ -489,7 +490,7 @@ export const useStore = create<StoreState>((set, get) => ({
     try {
       const status = filter === "all" ? undefined : filter;
       const offset = page * 10;
-      const data = await questionsApi.list(status, 10, offset, get().viewAs);
+      const data = await questionsApi.list(status, 10, offset, get().viewAs, sort);
       const pageData: QuestionPage = { items: data.questions, total: data.total, loadedAt: Date.now() };
       set((state) => ({
         questionPages: { ...state.questionPages, [key]: pageData },

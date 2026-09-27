@@ -2,21 +2,29 @@ import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useStore } from "@/store";
 import { questionsApi } from "@/lib/api";
-import type { Question } from "@/types";
+import type { Question, SortOrder } from "@/types";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
+// DISABLED (commented out) for now — only the Reject dialog used these.
+// import { Textarea } from "@/components/ui/textarea";
+// import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+// import {
+//   Dialog,
+//   DialogContent,
+//   DialogDescription,
+//   DialogFooter,
+//   DialogHeader,
+//   DialogTitle,
+// } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Pagination,
   PaginationContent,
@@ -31,26 +39,31 @@ import { MessageSquare, ChevronLeft, ChevronRight } from "lucide-react";
 const PAGE_SIZE = 10;
 
 // Astrologers only see paid questions; only queued (unanswered-paid) ones can be rejected.
-const REJECTABLE_STATUSES = ["Queued"];
+// DISABLED (commented out) for now — reject/unreject is paused. Restore together
+// with questionsApi.reject/unreject, the backend routes, and the Reject button.
+// const REJECTABLE_STATUSES = ["Queued"];
 
 export default function QuestionsPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [filter, setFilter] = useState("all");
+  const [sort, setSort] = useState<SortOrder>("latest");
   const [page, setPage] = useState(0);
-  const pageData = useStore((s) => s.questionPages[`${filter}:${page}`]);
+  const pageData = useStore((s) => s.questionPages[`${filter}:${sort}:${page}`]);
   const questions = pageData?.items ?? [];
   const total = pageData?.total ?? 0;
   const counts = useStore((s) => s.questionCounts);
   const loading = useStore((s) => s.questionsLoading);
   const loadQuestions = useStore((s) => s.loadQuestions);
-  const [rejectDialog, setRejectDialog] = useState<Question | null>(null);
-  const [rejectReason, setRejectReason] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+  // DISABLED (commented out) for now — reject/unreject is paused. See the
+  // Reject Dialog block at the bottom of this file for the restore checklist.
+  // const [rejectDialog, setRejectDialog] = useState<Question | null>(null);
+  // const [rejectReason, setRejectReason] = useState("");
+  // const [submitting, setSubmitting] = useState(false);
 
   const load = async (targetPage: number, force = false) => {
     try {
-      const data = await loadQuestions(filter, targetPage, force);
+      const data = await loadQuestions(filter, targetPage, sort, force);
 
       const highlightId = searchParams.get("id");
       if (highlightId && targetPage === 0) {
@@ -69,26 +82,31 @@ export default function QuestionsPage() {
   useEffect(() => {
     void load(page);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filter, page]);
+  }, [filter, sort, page]);
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
-  const handleReject = async () => {
-    if (!rejectDialog) return;
-    setSubmitting(true);
-    try {
-      await questionsApi.reject(rejectDialog.id, rejectReason.trim() || undefined);
-      toast.success("Question rejected");
-      setRejectDialog(null);
-      setRejectReason("");
-      setPage(0);
-      void load(0, true);
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Failed to reject");
-    } finally {
-      setSubmitting(false);
-    }
-  };
+  // DISABLED (commented out) for now — reject/unreject is paused. Restore
+  // together with questionsApi.reject/unreject in frontend/src/lib/api.ts, the
+  // PATCH /questions/:id/reject and /:id/unreject routes and
+  // `rejectQuestionSchema` in backend/, plus the Reject button, the Unreject
+  // button and the Reject dialog in this file.
+  // const handleReject = async () => {
+  //   if (!rejectDialog) return;
+  //   setSubmitting(true);
+  //   try {
+  //     await questionsApi.reject(rejectDialog.id, rejectReason.trim() || undefined);
+  //     toast.success("Question rejected");
+  //     setRejectDialog(null);
+  //     setRejectReason("");
+  //     setPage(0);
+  //     void load(0, true);
+  //   } catch (err: unknown) {
+  //     toast.error(err instanceof Error ? err.message : "Failed to reject");
+  //   } finally {
+  //     setSubmitting(false);
+  //   }
+  // };
 
   const statusCounts = {
     all: counts?.all ?? total,
@@ -113,19 +131,20 @@ export default function QuestionsPage() {
 
   const canReply = (q: Question) => q.status === "Queued" || q.status === "Answered";
 
-  const handleUnreject = async (q: Question) => {
-    setSubmitting(true);
-    try {
-      await questionsApi.unreject(q.id);
-      toast.success("Question restored to the queue");
-      setPage(0);
-      void load(0, true);
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Failed to unreject");
-    } finally {
-      setSubmitting(false);
-    }
-  };
+  // DISABLED (commented out) for now — reject/unreject is paused.
+  // const handleUnreject = async (q: Question) => {
+  //   setSubmitting(true);
+  //   try {
+  //     await questionsApi.unreject(q.id);
+  //     toast.success("Question restored to the queue");
+  //     setPage(0);
+  //     void load(0, true);
+  //   } catch (err: unknown) {
+  //     toast.error(err instanceof Error ? err.message : "Failed to unreject");
+  //   } finally {
+  //     setSubmitting(false);
+  //   }
+  // };
 
   return (
     <div className="space-y-6">
@@ -141,12 +160,30 @@ export default function QuestionsPage() {
           setPage(0);
         }}
       >
-        <TabsList className="flex w-full justify-start overflow-x-auto md:w-auto md:justify-center md:overflow-visible">
-          <TabsTrigger value="all">All ({statusCounts.all})</TabsTrigger>
-          <TabsTrigger value="Queued">Pending ({statusCounts.Queued})</TabsTrigger>
-          <TabsTrigger value="Answered">Answered ({statusCounts.Answered})</TabsTrigger>
-          <TabsTrigger value="Rejected">Rejected ({statusCounts.Rejected})</TabsTrigger>
-        </TabsList>
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <TabsList className="flex w-full justify-start overflow-x-auto md:w-auto md:justify-center md:overflow-visible">
+            <TabsTrigger value="all">All ({statusCounts.all})</TabsTrigger>
+            <TabsTrigger value="Queued">Pending ({statusCounts.Queued})</TabsTrigger>
+            <TabsTrigger value="Answered">Answered ({statusCounts.Answered})</TabsTrigger>
+            {/* <TabsTrigger value="Rejected">Rejected ({statusCounts.Rejected})</TabsTrigger> */}
+          </TabsList>
+
+          <Select
+            value={sort}
+            onValueChange={(v) => {
+              setSort(v as SortOrder);
+              setPage(0);
+            }}
+          >
+            <SelectTrigger className="w-full md:w-[140px]" aria-label="Sort questions">
+              <SelectValue placeholder="Sort" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="latest">Latest</SelectItem>
+              <SelectItem value="oldest">Oldest</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
 
         <TabsContent value={filter}>
           {loading ? (
@@ -209,6 +246,7 @@ export default function QuestionsPage() {
                           View
                         </Button>
                       )}
+                      {/* DISABLED (commented out) for now — reject/unreject is paused.
                       {REJECTABLE_STATUSES.includes(q.status) && (
                         <Button
                           size="sm"
@@ -222,7 +260,7 @@ export default function QuestionsPage() {
                         <Button size="sm" variant="outline" onClick={() => void handleUnreject(q)}>
                           Unreject
                         </Button>
-                      )}
+                      )} */}
                     </div>
                     <p className="text-xs text-muted-foreground">
                       {new Date(q.createdAt).toLocaleString()}
@@ -289,7 +327,7 @@ export default function QuestionsPage() {
         </TabsContent>
       </Tabs>
 
-      {/* Reject Dialog */}
+      {/* Reject Dialog — DISABLED (commented out) for now, reject/unreject is paused.
       <Dialog open={!!rejectDialog} onOpenChange={(open) => !open && setRejectDialog(null)}>
         <DialogContent>
           <DialogHeader>
@@ -320,7 +358,7 @@ export default function QuestionsPage() {
             </Button>
           </DialogFooter>
         </DialogContent>
-      </Dialog>
+      </Dialog> */}
     </div>
   );
 }

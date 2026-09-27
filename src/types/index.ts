@@ -16,6 +16,9 @@ export interface User {
  * ("client") for booking/asking other astrologers. */
 export type ViewAs = "client" | "astrologer";
 
+/** Sort order for the questions and bookings lists. `latest` is the default. */
+export type SortOrder = "latest" | "oldest";
+
 export interface AstrologerProfile {
   id: string;
   userId: string;

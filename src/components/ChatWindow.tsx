@@ -49,7 +49,7 @@ export function ChatWindow({ side }: { side: ViewAs }) {
     });
     if (status === "success") {
       void loadThread(id, true);
-      void useStore.getState().loadQuestions("all", 0, true);
+        void useStore.getState().loadQuestions("all", 0, "latest", true);
     }
   });
 
@@ -103,13 +103,13 @@ export function ChatWindow({ side }: { side: ViewAs }) {
         setDraft("");
         setBanner({ ok: true, message: "Payment successful! Your message has been sent." });
         void loadThread(question.id, true);
-        void useStore.getState().loadQuestions("all", 0, true);
+      void useStore.getState().loadQuestions("all", 0, "latest", true);
         return;
       }
       upsertMessage(question.id, result.message);
       setQuestionStatus(result.question.id, result.question.status);
       setDraft("");
-      if (isClient) void useStore.getState().loadQuestions("all", 0, true);
+      if (isClient) void useStore.getState().loadQuestions("all", 0, "latest", true);
     } catch (err: unknown) {
       setBanner({
         ok: false,

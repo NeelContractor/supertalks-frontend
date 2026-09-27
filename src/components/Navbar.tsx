@@ -64,7 +64,8 @@ export function Navbar() {
           </nav>
         </div>
         <div className="flex shrink-0 items-center gap-3">
-          {isAstrologer && (
+          {/* this feature is commented out for now, this will be added in future version */}
+          {/* {isAstrologer && (
             <div className="flex items-center gap-1 rounded-md bg-muted p-0.5 text-xs font-medium">
               <button
                 type="button"
@@ -89,7 +90,7 @@ export function Navbar() {
                 Customer
               </button>
             </div>
-          )}
+          )} */}
           <Avatar className="h-8 w-8">
             <AvatarFallback className="text-xs">
               {user?.name?.charAt(0)?.toUpperCase() ?? "?"}
