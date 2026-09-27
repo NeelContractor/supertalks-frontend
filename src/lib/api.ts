@@ -15,6 +15,7 @@ import type {
   AstrologerStats,
   ViewAs,
   WebsiteTemplate,
+  AstrologerApplication,
   MySite,
   SiteDocument,
   StoredTemplateData,
@@ -159,6 +160,8 @@ export const authApi = {
     username: string;
     password: string;
     mobile?: string;
+    /** Astrologer signups get a profile and must then complete /register. */
+    role?: "client" | "astrologer";
   }) => api<AuthResponse>("/auth/register", { method: "POST", body: data }),
 
   signin: (data: { identifier: string; password: string }) =>
@@ -181,6 +184,9 @@ export const usersApi = {
     api<AstrologerStats>(
       role ? `/me/stats?role=${role}` : "/me/stats",
     ),
+
+  updateMe: (data: { name?: string; mobile?: string | null; profileImageUrl?: string | null }) =>
+    api<{ user: User }>("/me", { method: "PATCH", body: data }),
 };
 
 // Payments API (used by the client flow when a paid message/booking needs checkout)
@@ -207,6 +213,16 @@ export const astrologerApi = {
   getMe: () =>
     api<{ user: User; profile: AstrologerProfile }>("/astrologers/me"),
 
+  /** null application = has not completed the /register workflow yet. */
+  getApplication: () =>
+    api<{ application: AstrologerApplication | null }>("/astrologers/application"),
+
+  submitApplication: (payload: Record<string, unknown>) =>
+    api<{ application: AstrologerApplication; profile: AstrologerProfile }>(
+      "/astrologers/application",
+      { method: "POST", body: { payload } },
+    ),
+
   getStats: () => api<AstrologerStats>("/astrologers/me/stats"),
 
   updateProfile: (data: {
@@ -215,6 +231,7 @@ export const astrologerApi = {
     languages?: string[];
     experienceYears?: number;
     timezone?: string;
+    allowCustomQuestions?: boolean;
   }) =>
     api<{ profile: AstrologerProfile }>("/astrologers/me", {
       method: "PATCH",

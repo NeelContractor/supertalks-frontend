@@ -1,7 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/auth";
 import { useStore } from "@/store";
-import { ProtectedRoute, AstrologerRoute } from "@/components/ProtectedRoute";
+import { ProtectedRoute, AstrologerRoute, RegisterRoute } from "@/components/ProtectedRoute";
 import { Navbar } from "@/components/Navbar";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "sonner";
@@ -38,7 +38,7 @@ export function App() {
         <TooltipProvider delayDuration={100}>
           <Toaster position="top-right" richColors />
           <Routes>
-          <Route path="/register" element={<Register />} />
+          <Route path="/register" element={<RegisterRoute><Register /></RegisterRoute>} />
           <Route path="/signin" element={<SignInPage />} />
           <Route path="/signup" element={<SignUpPage />} />
           <Route

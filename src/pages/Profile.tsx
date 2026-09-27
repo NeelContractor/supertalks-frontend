@@ -16,6 +16,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { Plus, Trash2, TriangleAlert } from "lucide-react";
@@ -92,6 +93,11 @@ export default function ProfilePage() {
   // Edit/view mode toggles
   const [bioEditing, setBioEditing] = useState(true);
   const [pricingEditing, setPricingEditing] = useState(true);
+
+  // Custom question box on the public site. Lives directly on the profile
+  // (no local copy) so the switch is a single source of truth.
+  const allowCustomQuestions = profile?.allowCustomQuestions ?? false;
+  const [savingCustom, setSavingCustom] = useState(false);
 
   // Rule dialog
   const [ruleDialog, setRuleDialog] = useState(false);
@@ -232,6 +238,23 @@ export default function ProfilePage() {
     }
   };
 
+  const handleToggleCustomQuestions = async (next: boolean) => {
+    setSavingCustom(true);
+    try {
+      const data = await astrologerApi.updateProfile({ allowCustomQuestions: next });
+      applyProfile(data.profile);
+      toast.success(
+        next
+          ? "Custom question box is now live on your website"
+          : "Custom question box removed from your website",
+      );
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to update your website");
+    } finally {
+      setSavingCustom(false);
+    }
+  };
+
   const handleSavePricing = async () => {
     setSaving(true);
     try {
@@ -367,77 +390,109 @@ export default function ProfilePage() {
 
         {/* Bio Tab */}
         <TabsContent value="bio">
-          <Card>
-            <CardHeader className="flex flex-row items-start justify-between">
-              <div>
-                <CardTitle>Personal Information</CardTitle>
-                <CardDescription>Tell clients about yourself</CardDescription>
-              </div>
-              {!bioEditing ? (
-                <Button variant="outline" size="sm" onClick={() => setBioEditing(true)}>
-                  Edit
-                </Button>
-              ) : null}
-            </CardHeader>
-            {bioEditing ? (
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="bio">Bio</Label>
-                <Textarea
-                  id="bio"
-                  placeholder="Share your experience, approach to astrology, and what makes you unique..."
-                  value={bio}
-                  onChange={(e) => setBio(e.target.value)}
-                  rows={5}
-                />
-              </div>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="specializations">Specializations (comma separated)</Label>
-                  <Input
-                    id="specializations"
-                    placeholder="Vedic Astrology, Numerology, Tarot"
-                    value={specializations}
-                    onChange={(e) => setSpecializations(e.target.value)}
+          <div className="space-y-6">
+            <Card className="gap-7 pb-7">
+              <CardHeader className="flex flex-row items-start justify-between">
+                <div>
+                  <CardTitle>Personal Information</CardTitle>
+                  <CardDescription>Tell clients about yourself</CardDescription>
+                </div>
+                {!bioEditing ? (
+                  <Button variant="outline" size="sm" onClick={() => setBioEditing(true)}>
+                    Edit
+                  </Button>
+                ) : null}
+              </CardHeader>
+              {bioEditing ? (
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="bio">Bio</Label>
+                    <Textarea
+                      id="bio"
+                      placeholder="Share your experience, approach to astrology, and what makes you unique..."
+                      value={bio}
+                      onChange={(e) => setBio(e.target.value)}
+                      rows={5}
+                    />
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="specializations">Specializations (comma separated)</Label>
+                      <Input
+                        id="specializations"
+                        placeholder="Vedic Astrology, Numerology, Tarot"
+                        value={specializations}
+                        onChange={(e) => setSpecializations(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="languages">Languages (comma separated)</Label>
+                      <Input
+                        id="languages"
+                        placeholder="English, Hindi, Sanskrit"
+                        value={languages}
+                        onChange={(e) => setLanguages(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="experience">Years of Experience</Label>
+                      <Input
+                        id="experience"
+                        type="number"
+                        min={0}
+                        max={80}
+                        placeholder="10"
+                        value={experienceYears}
+                        onChange={(e) => setExperienceYears(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <Button onClick={handleSaveBio} disabled={saving}>
+                    {saving ? "Saving..." : "Save Changes"}
+                  </Button>
+                </CardContent>
+              ) : (
+                <CardContent className="space-y-2">
+                  <OverviewRow label="Bio" value={profile?.bio} />
+                  <OverviewRow label="Specializations" value={profile?.specializations.join(", ")} />
+                  <OverviewRow label="Languages" value={profile?.languages.join(", ")} />
+                  <OverviewRow label="Years of Experience" value={profile?.experienceYears} />
+                </CardContent>
+              )}
+            </Card>
+
+            <Card className="gap-7 pb-7">
+              <CardHeader>
+                <CardTitle>Custom Question Box</CardTitle>
+                <CardDescription>
+                  Let clients write their own question on your website, below the questions you have
+                  already listed.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-start justify-between gap-4 rounded-lg border p-5">
+                  <div className="space-y-1">
+                    <Label htmlFor="allow-custom-questions" className="text-base">
+                      Allow custom questions
+                    </Label>
+                    <p className="text-sm text-muted-foreground">
+                      {allowCustomQuestions
+                        ? "Visitors can type their own question and submit it alongside your prefilled ones."
+                        : "Visitors can only pick from the questions you have listed."}
+                    </p>
+                  </div>
+                  <Switch
+                    id="allow-custom-questions"
+                    checked={allowCustomQuestions}
+                    disabled={savingCustom}
+                    onCheckedChange={handleToggleCustomQuestions}
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="languages">Languages (comma separated)</Label>
-                  <Input
-                    id="languages"
-                    placeholder="English, Hindi, Sanskrit"
-                    value={languages}
-                    onChange={(e) => setLanguages(e.target.value)}
-                  />
-                </div>
-              </div>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="experience">Years of Experience</Label>
-                  <Input
-                    id="experience"
-                    type="number"
-                    min={0}
-                    max={80}
-                    placeholder="10"
-                    value={experienceYears}
-                    onChange={(e) => setExperienceYears(e.target.value)}
-                  />
-                </div>
-              </div>
-              <Button onClick={handleSaveBio} disabled={saving}>
-                {saving ? "Saving..." : "Save Changes"}
-              </Button>
-            </CardContent>
-            ) : (
-            <CardContent className="space-y-2">
-              <OverviewRow label="Bio" value={profile?.bio} />
-              <OverviewRow label="Specializations" value={profile?.specializations.join(", ")} />
-              <OverviewRow label="Languages" value={profile?.languages.join(", ")} />
-              <OverviewRow label="Years of Experience" value={profile?.experienceYears} />
-            </CardContent>
-            )}
-          </Card>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
 
         {/* Pricing Tab */}

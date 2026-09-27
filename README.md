@@ -104,6 +104,7 @@ The frontend talks to the backend at `http://localhost:3000` (`src/lib/api.ts`).
 - when the payment gateway redirects back it should scroll or be take the same section before the redirect
 - customize admin dashboard for astrologer and client
 - fix client chat window ui the input box is getting to bottom to scroll and My Questions etc things are taking a lot of space
+- make the footer supertalks link uneditable by user
 
 - phonepe integation - test mode working
 - cloudiary integration - done
@@ -112,3 +113,13 @@ The frontend talks to the backend at `http://localhost:3000` (`src/lib/api.ts`).
 - Provider and Customer logic to switch between client and astrologer can be confusing
 
 - at last remove the docker postgres logic before pushing to prod
+
+- signup -> register (if not register already, if register dont show this page) -> dashboard (take user details)
+- commentout reject logic for now
+- add a feature for astrologer side to enable/disable for a custom question input box for the personal website. this would give a custom question asking input box on the website for client to ask question out of the prefilled. this feature toggle button should be in profile's section on the dashboard
+- on the service section of the personal website make it a custom service as the listing that brith chart reading is a service which is a service which would be priced xyz, written next to next.
+
+- when client completed proceed to payment is completed show a sonner of success or failed. if success on show successfully payment and a dashboard button to redirect or directly redirect the user to dashbaord. --- probably done
+
+- add alert or notifications section to astro dashboard for slot after x minutes timer
+- username must be unique

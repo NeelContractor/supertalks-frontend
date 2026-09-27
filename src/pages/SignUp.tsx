@@ -14,10 +14,29 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { toast } from "sonner";
+import { Sparkles, UserRound } from "lucide-react";
+
+type Role = "client" | "astrologer";
+
+const ROLES: { value: Role; label: string; blurb: string; icon: typeof Sparkles }[] = [
+  {
+    value: "client",
+    label: "I'm a client",
+    blurb: "Book sessions and ask astrologers questions.",
+    icon: UserRound,
+  },
+  {
+    value: "astrologer",
+    label: "I'm an astrologer",
+    blurb: "Offer consultations and get listed on the platform.",
+    icon: Sparkles,
+  },
+];
 
 export default function SignUpPage() {
   const { signup } = useAuth();
   const navigate = useNavigate();
+  const [role, setRole] = useState<Role>("client");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
@@ -28,9 +47,10 @@ export default function SignUpPage() {
     e.preventDefault();
     setLoading(true);
     try {
-      await signup({ name, email, username, password });
-      toast.success("Account created! Please sign in.");
-      navigate("/signin");
+      await signup({ name, email, username, password, role });
+      // Clients land on the dashboard; astrologers must complete the 7-step
+      // registration first.
+      navigate(role === "astrologer" ? "/register" : "/dashboard", { replace: true });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Registration failed";
       toast.error(message);
@@ -44,10 +64,40 @@ export default function SignUpPage() {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl">Create Account</CardTitle>
-          <CardDescription>Register as an astrologer</CardDescription>
+          <CardDescription>Tell us how you&apos;ll use the platform</CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-3" role="radiogroup" aria-label="Account type">
+              {ROLES.map((r) => {
+                const active = role === r.value;
+                const Icon = r.icon;
+                return (
+                  <button
+                    key={r.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={active}
+                    onClick={() => setRole(r.value)}
+                    className={
+                      "rounded-lg border p-3 text-left transition-colors " +
+                      (active
+                        ? "border-primary bg-primary/5 ring-1 ring-primary"
+                        : "border-border hover:border-primary/60")
+                    }
+                  >
+                    <Icon
+                      className={
+                        "mb-1.5 h-4 w-4 " + (active ? "text-primary" : "text-muted-foreground")
+                      }
+                    />
+                    <span className="block text-sm font-medium">{r.label}</span>
+                    <span className="mt-0.5 block text-xs text-muted-foreground">{r.blurb}</span>
+                  </button>
+                );
+              })}
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="name">Full Name</Label>
               <Input
@@ -93,7 +143,11 @@ export default function SignUpPage() {
           </CardContent>
           <CardFooter className="flex flex-col gap-4 mt-2">
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Creating account..." : "Sign Up"}
+              {loading
+                ? "Creating account..."
+                : role === "astrologer"
+                  ? "Sign Up & Register"
+                  : "Sign Up"}
             </Button>
             <p className="text-sm text-muted-foreground">
               Already have an account?{" "}

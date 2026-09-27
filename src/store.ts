@@ -3,6 +3,7 @@ import { useShallow } from "zustand/react/shallow";
 import type {
   User,
   AstrologerProfile,
+  AstrologerApplication,
   Booking,
   BookingCounts,
   Question,
@@ -55,6 +56,18 @@ interface StoreState {
   authLoading: boolean;
   authHydrated: boolean;
 
+  /**
+   * The user's /register submission. `null` + `applicationLoaded` means they
+   * have not registered yet (so /register should be shown); a non-null value
+   * means the workflow is done and /register must be skipped. Clients never
+   * have one, so they always go straight to the dashboard.
+   */
+  application: AstrologerApplication | null;
+  applicationLoading: boolean;
+  applicationLoaded: boolean;
+  /** The application lookup failed. Never treat this as "unregistered". */
+  applicationError: boolean;
+
   // Which side of the dashboard is shown. Astrologers can flip between their
   // provider view ("astrologer") and their own customer view ("client");
   // client-only users always see "client".
@@ -99,12 +112,24 @@ interface StoreState {
     email: string;
     username: string;
     password: string;
+    mobile?: string;
+    role?: "client" | "astrologer";
   }) => Promise<void>;
   signout: () => Promise<void>;
   onboard: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   applyProfile: (profile: AstrologerProfile) => void;
   setViewAs: (viewAs: ViewAs) => void;
+
+  loadApplication: (force?: boolean) => Promise<AstrologerApplication | null>;
+  submitApplication: (
+    payload: Record<string, unknown>,
+  ) => Promise<{ application: AstrologerApplication; profile: AstrologerProfile }>;
+  /**
+   * Where the user belongs right now: an astrologer who has not submitted the
+   * register form goes to /register, everyone else to /dashboard.
+   */
+  landingPath: () => Promise<string>;
 
   loadStats: (force?: boolean) => Promise<AstrologerStats | null>;
   loadBookings: (filter: string, page: number, force?: boolean) => Promise<BookingPage>;
@@ -174,6 +199,10 @@ export const useStore = create<StoreState>((set, get) => ({
   profile: null,
   authLoading: true,
   authHydrated: false,
+  application: null,
+  applicationLoading: false,
+  applicationLoaded: false,
+  applicationError: false,
   viewAs: "client",
 
   // ---- dashboard stats ----------------------------------------------------
@@ -256,7 +285,14 @@ export const useStore = create<StoreState>((set, get) => ({
     const data = await authApi.signin({ identifier, password });
     setTokens(data.accessToken, data.refreshToken);
     storeUser(data.user);
-    set({ user: data.user, viewAs: defaultViewAs(data.user.role) });
+    // Re-resolve the registration for whoever just signed in.
+    set({
+      user: data.user,
+      viewAs: defaultViewAs(data.user.role),
+      application: null,
+      applicationLoaded: false,
+      applicationError: false,
+    });
     if (data.user.role === "Astrologer") {
       try {
         const profileData = await astrologerApi.getMe();
@@ -273,7 +309,16 @@ export const useStore = create<StoreState>((set, get) => ({
     const data = await authApi.register(regData);
     setTokens(data.accessToken, data.refreshToken);
     storeUser(data.user);
-    set({ user: data.user, viewAs: "client" });
+    // A brand-new astrologer has no application yet, so the register workflow
+    // is still ahead of them.
+    set({
+      user: data.user,
+      profile: data.profile ?? null,
+      viewAs: data.user.role === "Astrologer" ? "astrologer" : "client",
+      application: null,
+      applicationLoaded: regData.role !== "astrologer",
+      applicationError: false,
+    });
   },
 
   signout: async () => {
@@ -286,6 +331,9 @@ export const useStore = create<StoreState>((set, get) => ({
         user: null,
         profile: null,
         viewAs: "client",
+        application: null,
+        applicationLoaded: false,
+        applicationError: false,
         stats: null,
         statsLoadedAt: null,
         bookingPages: {},
@@ -310,6 +358,55 @@ export const useStore = create<StoreState>((set, get) => ({
     localStorage.setItem(VIEW_AS_KEY, "astrologer");
     storeUser(data.user);
     set({ user: data.user, profile: data.profile, viewAs: "astrologer" });
+  },
+
+  // ---- astrologer registration ------------------------------------------
+  loadApplication: async (force = false) => {
+    const { user, application, applicationLoaded, applicationLoading } = get();
+    if (!user || user.role !== "Astrologer") {
+      // Clients never register, so resolve without a request.
+      set({ application: null, applicationLoaded: true, applicationError: false });
+      return null;
+    }
+    if (!force && applicationLoaded) return application;
+    if (applicationLoading) return application;
+
+    set({ applicationLoading: true });
+    try {
+      const data = await astrologerApi.getApplication();
+      set({ application: data.application, applicationLoaded: true, applicationError: false });
+      return data.application;
+    } catch {
+      // Deliberately NOT resolved as "has no application": a failed lookup
+      // must never be mistaken for "unregistered", or the register form would
+      // reappear for someone who already submitted. Callers fall back to the
+      // dashboard instead.
+      set({ applicationLoaded: false, applicationError: true });
+      return null;
+    } finally {
+      set({ applicationLoading: false });
+    }
+  },
+
+  submitApplication: async (payload) => {
+    const data = await astrologerApi.submitApplication(payload);
+    set({
+      application: data.application,
+      applicationLoaded: true,
+      applicationError: false,
+      profile: data.profile,
+    });
+    return data;
+  },
+
+  landingPath: async () => {
+    const { user } = get();
+    if (user?.role === "Astrologer") {
+      const application = await get().loadApplication();
+      if (get().applicationError) return "/dashboard";
+      return application ? "/dashboard" : "/register";
+    }
+    return "/dashboard";
   },
 
   setViewAs: (viewAs) => {
@@ -508,10 +605,17 @@ export const useAuth = () =>
       user: s.user,
       profile: s.profile,
       loading: s.authLoading,
+      application: s.application,
+      applicationLoading: s.applicationLoading,
+      applicationLoaded: s.applicationLoaded,
+      applicationError: s.applicationError,
       signin: s.signin,
       signup: s.signup,
       signout: s.signout,
       onboard: s.onboard,
       refreshProfile: s.refreshProfile,
+      loadApplication: s.loadApplication,
+      submitApplication: s.submitApplication,
+      landingPath: s.landingPath,
     })),
   );

@@ -1,4 +1,6 @@
 import { useState, type ReactNode } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/auth";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -334,9 +336,13 @@ function SubGroup(props: { title: string; children: ReactNode }) {
 /* ------------------------------------------------------------------ */
 
 export default function Register() {
+  const { user, submitApplication } = useAuth();
+  const navigate = useNavigate();
   const [stepIndex, setStepIndex] = useState(0);
   const [data, setData] = useState<RegisterFormData>(initialData);
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const update = <K extends keyof RegisterFormData>(key: K, value: RegisterFormData[K]) =>
     setData((prev) => ({ ...prev, [key]: value }));
@@ -378,9 +384,20 @@ export default function Register() {
     data.agreeRefund &&
     data.agreeAccuracy;
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!canSubmit) return;
-    setSubmitted(true);
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      await submitApplication({ ...data });
+      setSubmitted(true);
+    } catch (err) {
+      setSubmitError(
+        err instanceof Error ? err.message : "Could not submit your registration. Please try again.",
+      );
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   if (submitted) {
@@ -401,19 +418,24 @@ export default function Register() {
           <h2 className="text-xl font-semibold text-foreground">Submitted for review</h2>
           <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
             Your profile is now in <span className="font-medium text-primary">Under Review</span>.
-            We'll notify you at {data.email || "your registered email"} once it's approved and
-            published.
+            We&apos;ll notify you at {data.email || user?.email || "your registered email"} once
+            it&apos;s approved and published.
           </p>
-          <Button
-            variant="outline"
-            className="mt-6"
-            onClick={() => {
-              setSubmitted(false);
-              setStepIndex(0);
-            }}
-          >
-            Edit application
-          </Button>
+          <div className="mt-6 flex flex-col gap-2 sm:flex-row">
+            <Button
+              variant="outline"
+              className="flex-1"
+              onClick={() => {
+                setSubmitted(false);
+                setStepIndex(0);
+              }}
+            >
+              Edit application
+            </Button>
+            <Button className="flex-1" onClick={() => navigate("/dashboard")}>
+              Go to dashboard
+            </Button>
+          </div>
         </div>
       </div>
     );
@@ -430,7 +452,7 @@ export default function Register() {
             Set up your practice on the platform
           </h1>
           <p className="mt-1.5 text-sm text-muted-foreground">
-            Seven short steps — your work saves as a draft until you submit it for review.
+            Seven short steps — we&apos;ll submit everything for review when you&apos;re done.
           </p>
         </div>
 
@@ -1099,12 +1121,17 @@ export default function Register() {
                   </Button>
                   <Button
                     onClick={handleSubmit}
-                    disabled={!canSubmit}
+                    disabled={!canSubmit || submitting}
                     className="flex-1"
                   >
-                    Submit for review
+                    {submitting ? "Submitting..." : "Submit for review"}
                   </Button>
                 </div>
+                {submitError && (
+                  <p className="mt-3 rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                    {submitError}
+                  </p>
+                )}
               </>
             )}
 

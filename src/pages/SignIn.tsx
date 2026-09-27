@@ -16,7 +16,7 @@ import {
 import { toast } from "sonner";
 
 export default function SignInPage() {
-  const { signin } = useAuth();
+  const { signin, landingPath } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [identifier, setIdentifier] = useState("");
@@ -29,8 +29,11 @@ export default function SignInPage() {
     setLoading(true);
     try {
       await signin(identifier, password);
-      const next = searchParams.get("next");
-      navigate(next || "/dashboard");
+      // An explicit `?next=` wins (it is set by the expired-session redirect);
+      // otherwise astrologers without a submitted registration continue to
+      // /register and everyone else goes to the dashboard.
+      const next = searchParams.get("next") ?? (await landingPath());
+      navigate(next, { replace: true });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Sign in failed";
       toast.error(message);
@@ -44,7 +47,7 @@ export default function SignInPage() {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl">Welcome Back</CardTitle>
-          <CardDescription>Sign in to your astrologer account</CardDescription>
+          <CardDescription>Sign in to your account</CardDescription>
         </CardHeader>
         {expired && (
           <div className="mx-6 rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">

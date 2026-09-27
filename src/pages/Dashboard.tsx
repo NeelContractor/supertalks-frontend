@@ -13,7 +13,6 @@ export default function DashboardPage() {
 
 function AstrologerDashboard() {
   const user = useStore((s) => s.user);
-  const profile = useStore((s) => s.profile);
   const stats = useStore((s) => s.stats);
   const recentBookings = (useStore((s) => s.bookingPages["all:0"]?.items) ?? []).slice(0, 5);
   const recentQuestions = (useStore((s) => s.questionPages["all:0"]?.items) ?? []).slice(0, 5);
@@ -44,16 +43,7 @@ function AstrologerDashboard() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-2xl font-bold">
-          Welcome, {user?.name ?? "Astrologer"}
-        </h1>
-        <p className="text-muted-foreground">
-          {profile?.status === "Approved"
-            ? "Your profile is live and accepting clients."
-            : profile?.status === "Pending"
-              ? "Your profile is under review. You'll be approved soon."
-              : "Set up your profile to start receiving clients."}
-        </p>
+        <h1 className="text-2xl font-bold">Welcome, {user?.name ?? "Astrologer"}</h1>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

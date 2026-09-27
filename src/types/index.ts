@@ -5,6 +5,10 @@ export interface User {
   username: string;
   role: "Client" | "Astrologer" | "Admin";
   profileImageUrl?: string;
+  /** Only returned by GET /me, not by the signup/signin responses. */
+  mobile?: string | null;
+  emailVerified?: boolean;
+  mobileVerified?: boolean;
 }
 
 /** Which side of the dashboard a user is looking at. Astrologers can have
@@ -33,14 +37,30 @@ export interface AstrologerProfile {
   templateData: Record<string, unknown>;
   isAcceptingQuestions: boolean;
   isAcceptingBookings: boolean;
+  /** Shows a free-text question box under the prefilled ones on the public site. */
+  allowCustomQuestions: boolean;
   createdAt: string;
   updatedAt: string;
 }
 
 export interface AuthResponse {
   user: User;
+  /** Present when the account was created as an astrologer. */
+  profile?: AstrologerProfile | null;
   accessToken: string;
   refreshToken: string;
+}
+
+/** The 7-step /register submission. Only its existence gates the flow, so the
+ * payload is intentionally left loose. */
+export interface AstrologerApplication {
+  id: string;
+  userId: string;
+  status: "Submitted" | "Approved" | "Rejected";
+  payload: Record<string, unknown>;
+  submittedAt: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface AvailabilityRule {
