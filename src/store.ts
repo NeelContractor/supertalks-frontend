@@ -84,6 +84,15 @@ interface StoreState {
   bookingCounts: BookingCounts | null;
   bookingsLoading: boolean;
 
+  /**
+   * The next sessions that have not started yet, nearest first. Kept apart from
+   * `bookingPages` because it is shared: the navbar bell polls it on its own
+   * cadence and must not invalidate (or be invalidated by) the paginated list.
+   */
+  upcomingBookings: Booking[];
+  upcomingBookingsLoading: boolean;
+  upcomingBookingsLoadedAt: number | null;
+
   // ---- questions -----------------------------------------------------------
   questionPages: Record<string, QuestionPage>;
   questionCounts: QuestionCounts | null;
@@ -134,6 +143,7 @@ interface StoreState {
 
   loadStats: (force?: boolean) => Promise<AstrologerStats | null>;
   loadBookings: (filter: string, page: number, sort?: SortOrder, force?: boolean) => Promise<BookingPage>;
+  loadUpcomingBookings: (force?: boolean) => Promise<Booking[]>;
   loadQuestions: (filter: string, page: number, sort?: SortOrder, force?: boolean) => Promise<QuestionPage>;
   loadAvailability: (force?: boolean) => Promise<void>;
   setRules: (rules: AvailabilityRule[]) => void;
@@ -193,6 +203,19 @@ function defaultViewAs(role: string | undefined): ViewAs {
 const AVAILABILITY_TTL = 30_000;
 const SITE_TTL = 30_000;
 const STATS_TTL = 60_000;
+/** How stale the navbar's "next session" list may get before we refetch. */
+const UPCOMING_TTL = 30_000;
+/** Enough to cover the reminder window; the bell only ever shows a short list. */
+const UPCOMING_LIMIT = 10;
+
+/**
+ * In development React StrictMode double-invokes the AuthProvider effect, so
+ * hydrateAuth can run twice before a handoff exchange has finished. The second
+ * run sees the ?code= already stripped from the URL and no token yet, which
+ * would drop the session and bounce the client to /signin. Share the in-flight
+ * exchange so duplicate runs wait for it instead.
+ */
+let handoffExchangeInFlight: Promise<void> | null = null;
 
 export const useStore = create<StoreState>((set, get) => ({
   // ---- auth / identity ----------------------------------------------------
@@ -215,6 +238,9 @@ export const useStore = create<StoreState>((set, get) => ({
   bookingPages: {},
   bookingCounts: null,
   bookingsLoading: false,
+  upcomingBookings: [],
+  upcomingBookingsLoading: false,
+  upcomingBookingsLoadedAt: null,
 
   // ---- questions -----------------------------------------------------------
   questionPages: {},
@@ -239,6 +265,33 @@ export const useStore = create<StoreState>((set, get) => ({
 
   // ---- actions ---------------------------------------------------------------
   hydrateAuth: async () => {
+    // Cross-app handoff: the public site redirects here with a one-time
+    // ?code= after a successful payment. Redeem it for a fresh token pair,
+    // then strip the code from the URL before anything else runs.
+    const rawQuery = typeof window !== "undefined" ? window.location.search : "";
+    const query = new URLSearchParams(rawQuery);
+    const handoffCode = query.get("code");
+    if (handoffCode) {
+      query.delete("code");
+      const clean = `${window.location.pathname}${query.toString() ? `?${query.toString()}` : ""}${window.location.hash}`;
+      window.history.replaceState(null, "", clean);
+      handoffExchangeInFlight = (async () => {
+        try {
+          const data = await authApi.exchangeHandoff(handoffCode);
+          setTokens(data.accessToken, data.refreshToken);
+          storeUser(data.user);
+        } catch {
+          // Code invalid/expired/used. Fall through: if no stored session exists
+          // the ProtectedRoute redirects to /signin and the client re-signs in.
+        }
+      })();
+    }
+    // Wait for the handoff exchange, no matter which run started it. A failed
+    // exchange resolves this too, and the token check below decides what to do.
+    if (handoffExchangeInFlight) {
+      await handoffExchangeInFlight;
+    }
+
     const token = getAccessToken();
     if (!token) {
       set({ user: getStoredUser(), profile: null, authLoading: false, authHydrated: true });
@@ -339,6 +392,8 @@ export const useStore = create<StoreState>((set, get) => ({
         statsLoadedAt: null,
         bookingPages: {},
         bookingCounts: null,
+        upcomingBookings: [],
+        upcomingBookingsLoadedAt: null,
         questionPages: {},
         questionCounts: null,
         rules: [],
@@ -421,6 +476,8 @@ export const useStore = create<StoreState>((set, get) => ({
       statsLoadedAt: null,
       bookingPages: {},
       bookingCounts: null,
+      upcomingBookings: [],
+      upcomingBookingsLoadedAt: null,
       questionPages: {},
       questionCounts: null,
     });
@@ -476,6 +533,27 @@ export const useStore = create<StoreState>((set, get) => ({
       return pageData;
     } finally {
       set({ bookingsLoading: false });
+    }
+  },
+
+  loadUpcomingBookings: async (force = false) => {
+    const { upcomingBookings, upcomingBookingsLoadedAt } = get();
+    // A short TTL absorbs the navbar's poll loop plus the Bookings page
+    // mounting, so a page change does not immediately re-hit the endpoint.
+    if (!force && upcomingBookingsLoadedAt && Date.now() - upcomingBookingsLoadedAt < UPCOMING_TTL) {
+      return upcomingBookings;
+    }
+    set({ upcomingBookingsLoading: true });
+    try {
+      const data = await bookingsApi.upcoming(UPCOMING_LIMIT, get().viewAs);
+      const items = data.bookings ?? [];
+      set({ upcomingBookings: items, upcomingBookingsLoadedAt: Date.now() });
+      return items;
+    } catch {
+      // Keep whatever we already had on screen rather than blanking the bell.
+      return get().upcomingBookings;
+    } finally {
+      set({ upcomingBookingsLoading: false });
     }
   },
 

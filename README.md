@@ -99,27 +99,26 @@ The frontend talks to the backend at `http://localhost:3000` (`src/lib/api.ts`).
 > The `GET /bookings` and `GET /questions` list endpoints are paginated server-side via `limit` (default 10, max 100) and `offset` query params. Responses include a `total` and per-status `counts` object, used by the dashboard stats cards and the per-tab count badges. List pages use the shadcn pagination control to page through results.
 
 # TODO 
-- rejected logic (what happens when astrologer rejects a booking or question?)
 
-- when the payment gateway redirects back it should scroll or be take the same section before the redirect
 - customize admin dashboard for astrologer and client
 - fix client chat window ui the input box is getting to bottom to scroll and My Questions etc things are taking a lot of space
-- make the footer supertalks link uneditable by user
 
 - phonepe integation - test mode working
 - cloudiary integration - done
 - production db integration - todo
 
-- Provider and Customer logic to switch between client and astrologer can be confusing
-
 - at last remove the docker postgres logic before pushing to prod
 
 - signup -> register (if not register already, if register dont show this page) -> dashboard (take user details)
-- on the service section of the personal website make it a custom service as the listing that brith chart reading is a service which is a service which would be priced xyz, written next to next.
 
 - when client completed proceed to payment is completed show a sonner of success or failed. if success on show successfully payment and a dashboard button to redirect or directly redirect the user to dashbaord. --- probably done
 
-- add alert or notifications section on the navbar to astro dashboard for slot after x minutes timer (eg. you have a booking after 15 minutes with link to the slot booking)
 - username must be unique
 
-- make the services's card open a dailog box for slot booking and Your birth details and proceed to pay.
+- add logic to get all the location on the birth place is there any way? does shadcn input box has feature for this? as a person can make mistakes while writing place name. https://developers.google.com/maps/documentation/javascript/legacy/place-autocomplete
+
+thinking to add a feature in customize tab's Start from a palette section to add a random theme selector. by clicking on it would randomly select colour and fonts, just this two to create website theme
+
+- dont show Book a Session and Ask a Question section on the customize tab
+
+- fix the navbar content on mobile view

@@ -162,9 +162,9 @@ export default function QuestionsPage() {
       >
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <TabsList className="flex w-full justify-start overflow-x-auto md:w-auto md:justify-center md:overflow-visible">
-            <TabsTrigger value="all">All ({statusCounts.all})</TabsTrigger>
-            <TabsTrigger value="Queued">Pending ({statusCounts.Queued})</TabsTrigger>
-            <TabsTrigger value="Answered">Answered ({statusCounts.Answered})</TabsTrigger>
+            <TabsTrigger className="hover:cursor-pointer" value="all">All ({statusCounts.all})</TabsTrigger>
+            <TabsTrigger className="hover:cursor-pointer" value="Queued">Pending ({statusCounts.Queued})</TabsTrigger>
+            <TabsTrigger className="hover:cursor-pointer" value="Answered">Answered ({statusCounts.Answered})</TabsTrigger>
             {/* <TabsTrigger value="Rejected">Rejected ({statusCounts.Rejected})</TabsTrigger> */}
           </TabsList>
 
@@ -175,12 +175,12 @@ export default function QuestionsPage() {
               setPage(0);
             }}
           >
-            <SelectTrigger className="w-full md:w-[140px]" aria-label="Sort questions">
+            <SelectTrigger className="w-full md:w-[140px] hover:cursor-pointer" aria-label="Sort questions">
               <SelectValue placeholder="Sort" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="latest">Latest</SelectItem>
-              <SelectItem value="oldest">Oldest</SelectItem>
+              <SelectItem className="hover:cursor-pointer" value="latest">Latest</SelectItem>
+              <SelectItem className="hover:cursor-pointer" value="oldest">Oldest</SelectItem>
             </SelectContent>
           </Select>
         </div>

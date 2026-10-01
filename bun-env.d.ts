@@ -10,6 +10,33 @@ declare module "*.svg" {
 
 declare module "*.css" {}
 
+// Bun's bundler emits an imported image and hands back its hashed URL, the same
+// way it handles the SVG favicon. Declaring these keeps `import img from "./x.png"`
+// type-checking instead of erroring as an unresolved module.
+declare module "*.png" {
+  /** The URL path of the emitted PNG asset. */
+  const path: string;
+  export = path;
+}
+
+declare module "*.jpg" {
+  /** The URL path of the emitted JPEG asset. */
+  const path: string;
+  export = path;
+}
+
+declare module "*.jpeg" {
+  /** The URL path of the emitted JPEG asset. */
+  const path: string;
+  export = path;
+}
+
+declare module "*.webp" {
+  /** The URL path of the emitted WebP asset. */
+  const path: string;
+  export = path;
+}
+
 declare module "*.module.css" {
   /**
    * A record of class names to their corresponding CSS module classes

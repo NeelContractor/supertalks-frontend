@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { astrologerApi } from "@/lib/api";
 import { uploadImageToCloudinary } from "@/lib/cloudinary";
+import { SITE_ORIGIN } from "@/lib/site";
 import { useStore } from "@/store";
 import type {
   FieldStyle,
@@ -58,9 +59,8 @@ import {
   Lock,
   Upload,
   Loader2,
+  X,
 } from "lucide-react"; 
-
-const SITE_ORIGIN = "http://localhost:3002";
 
 const DEVICES = {
   desktop: { label: "Desktop", width: "100%", Icon: Monitor },
@@ -104,7 +104,9 @@ function labelFor(key: string): string {
 const HIDDEN_FIELD_KEYS = new Set(["ctaLink", "buttonLink", "logoAlt", "imageAlt", "alt"]);
 
 // Fields that must stay fixed for the astrologer (locked everywhere).
-const LOCKED_FIELD_KEYS = new Set(["ctaLabel"]);
+// `copyright` is the SuperTalks attribution — it renders as a link to our site,
+// so neither the label nor the destination may be repointed.
+const LOCKED_FIELD_KEYS = new Set(["ctaLabel", "copyright"]);
 
 const GOOGLE_FONTS = [
   "Inter", "Roboto", "Open Sans", "Lato", "Montserrat", "Poppins",
@@ -694,7 +696,7 @@ export default function WebsitePage() {
       {/* Toolbar */}
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-lg border bg-background px-3 py-2">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <LayoutTemplate className="h-4 w-4 shrink-0 text-muted-foreground" />
+          {/* <LayoutTemplate className="h-4 w-4 shrink-0 text-muted-foreground" /> */}
           {templates.length > 0 ? (
             <Select value={templateId} onValueChange={(id) => {
               const t = templates.find((x) => x.id === id);
@@ -736,7 +738,7 @@ export default function WebsitePage() {
                     type="button"
                     title={label}
                     onClick={() => setDevice(d)}
-                    className={`flex h-8 w-8 items-center justify-center rounded ${
+                    className={`flex h-8 w-8 items-center justify-center rounded hover:cursor-pointer ${
                       device === d
                         ? "bg-primary text-primary-foreground"
                         : "text-muted-foreground hover:bg-accent"
@@ -759,7 +761,7 @@ export default function WebsitePage() {
                     type="button"
                     onClick={undo}
                     disabled={historyIndex < 0}
-                    className="flex h-8 w-8 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent disabled:pointer-events-none disabled:opacity-40"
+                    className="flex h-8 w-8 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent disabled:pointer-events-none disabled:opacity-40 hover:cursor-pointer"
                   >
                     <Undo2 className="h-4 w-4" />
                   </button>
@@ -772,7 +774,7 @@ export default function WebsitePage() {
                     type="button"
                     onClick={redo}
                     disabled={historyIndex >= history.length - 1}
-                    className="flex h-8 w-8 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent disabled:pointer-events-none disabled:opacity-40"
+                    className="flex h-8 w-8 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent disabled:pointer-events-none disabled:opacity-40 hover:cursor-pointer"
                   >
                     <Redo2 className="h-4 w-4" />
                   </button>
@@ -785,7 +787,7 @@ export default function WebsitePage() {
                     <AlertDialogTrigger asChild>
                       <button
                         type="button"
-                        className="flex h-8 w-8 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent"
+                        className="flex h-8 w-8 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:cursor-pointer"
                       >
                         <RotateCcw className="h-4 w-4" />
                       </button>
@@ -822,7 +824,7 @@ export default function WebsitePage() {
           </Button>
           <Button size="sm" className="h-8 gap-1.5" onClick={handleSave} disabled={saving || !dirty}>
             <Save className="h-4 w-4" />
-            {saving ? "Saving..." : "Save"}
+            {saving ? "Saving Changes..." : "Save Changes"}
           </Button>
         </div>
       </div>
@@ -939,7 +941,7 @@ function OptionPill({
     <button
       type="button"
       onClick={onClick}
-      className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+      className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-medium transition-colors hover:cursor-pointer ${
         active
           ? "border-primary bg-primary text-primary-foreground"
           : "border-border bg-background text-muted-foreground hover:bg-accent hover:text-foreground"
@@ -1333,6 +1335,38 @@ function SectionPanel({
   );
 }
 
+function ImagePreview({ url, compact }: { url: string; compact?: boolean }) {
+  // Tracking *which* URL failed (rather than a boolean) means a new upload
+  // renders immediately instead of flashing the fallback for a frame, and a
+  // transient CDN hiccup does not permanently poison the next image.
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
+
+  if (failedUrl === url) {
+    return (
+      <div className="flex w-full items-center justify-center rounded-md border border-dashed bg-muted/40 px-3 py-5 text-center text-xs text-muted-foreground">
+        Preview unavailable
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={`relative w-full overflow-hidden rounded-md border bg-muted ${
+        compact ? "aspect-[4/3]" : "aspect-video"
+      }`}
+    >
+      {/* Decorative: the field is already labelled in the panel above. */}
+      <img
+        src={url}
+        alt=""
+        loading="lazy"
+        onError={() => setFailedUrl(url)}
+        className="h-full w-full object-contain"
+      />
+    </div>
+  );
+}
+
 function ImageUploadControl({
   onPatch,
   // onAutosave,
@@ -1364,8 +1398,10 @@ function ImageUploadControl({
     }
   };
 
+  const hasImage = typeof currentUrl === "string" && currentUrl.length > 0;
+
   return (
-    <>
+    <div className="space-y-2">
       <Button
         type="button"
         size="sm"
@@ -1379,7 +1415,7 @@ function ImageUploadControl({
         ) : (
           <Upload className="h-3.5 w-3.5" />
         )}
-        {uploading ? "Uploading..." : "Upload Image"}
+        {uploading ? "Uploading..." : hasImage ? "Replace Image" : "Upload Image"}
       </Button>
       <input
         ref={inputRef}
@@ -1388,14 +1424,35 @@ function ImageUploadControl({
         className="hidden"
         onChange={(e) => handleFile(e.target.files?.[0])}
       />
-      {compact ? null : typeof currentUrl === "string" && currentUrl ? (
-        <span className="truncate text-xs text-muted-foreground" title={currentUrl}>
-          {currentUrl}
-        </span>
+      {hasImage ? (
+        <>
+          <ImagePreview url={currentUrl} compact={compact} />
+          <div className="flex items-start gap-2">
+            {compact ? null : (
+              <span
+                className="min-w-0 flex-1 truncate text-xs text-muted-foreground"
+                title={currentUrl}
+              >
+                {currentUrl}
+              </span>
+            )}
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              title="Remove image"
+              aria-label="Remove image"
+              className="-mt-1 shrink-0"
+              onClick={() => onPatch("")}
+            >
+              <X className="h-3.5 w-3.5 text-destructive" />
+            </Button>
+          </div>
+        </>
       ) : (
         <span className="text-xs text-muted-foreground">No image set.</span>
       )}
-    </>
+    </div>
   );
 }
 
@@ -1638,7 +1695,7 @@ function DesignTokens({
                 aria-label={`Apply ${pal.name} palette`}
                 title={pal.name}
                 onClick={() => onApplyPalette(pal)}
-                className={`relative overflow-hidden rounded-lg transition-all ${
+                className={`relative overflow-hidden rounded-lg transition-all hover:cursor-pointer ${
                   selected
                     ? "ring-2 ring-blue-600 ring-offset-1"
                     : "ring-1 ring-foreground/15 hover:ring-foreground/40"
@@ -1684,7 +1741,7 @@ function DesignTokens({
               >
                 <Input
                   type="color"
-                  className="h-8 w-10 shrink-0 p-0.5"
+                  className="h-8 w-10 shrink-0 p-0.5 hover:cursor-pointer"
                   title={typeof value === "string" ? value : ""}
                   value={typeof value === "string" && /^#/.test(value) ? value : "#771609"}
                   onChange={(e) => onPatch(key, e.target.value)}
@@ -1708,7 +1765,7 @@ function DesignTokens({
               <div key={key} className="space-y-1.5">
                 <Label>{labelFor(key)}</Label>
                 <Select value={String(value)} onValueChange={(v) => onPatch(key, v)}>
-                  <SelectTrigger>
+                  <SelectTrigger className="hover:cursor-pointer">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>

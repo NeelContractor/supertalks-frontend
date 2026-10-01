@@ -87,6 +87,13 @@ export interface AvailabilityException {
   createdAt: string;
 }
 
+/** Compact astrologer shape returned by the bookings/questions list APIs. */
+export interface AstrologerRef {
+  id: string;
+  slug?: string;
+  user: { name: string };
+}
+
 export interface Booking {
   id: string;
   clientId: string;
@@ -103,7 +110,7 @@ export interface Booking {
   createdAt: string;
   updatedAt: string;
   client?: User;
-  astrologer?: { user: User; profile: AstrologerProfile };
+  astrologer?: AstrologerRef;
 }
 
 export interface Question {
@@ -121,7 +128,7 @@ export interface Question {
   createdAt: string;
   updatedAt: string;
   client?: User;
-  astrologer?: { user: User; profile: AstrologerProfile };
+  astrologer?: AstrologerRef;
   lastMessage?: QuestionMessage | null;
 }
 

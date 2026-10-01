@@ -168,6 +168,13 @@ export const authApi = {
   signin: (data: { identifier: string; password: string }) =>
     api<AuthResponse>("/auth/signin", { method: "POST", body: data }),
 
+  /**
+   * Redeem a one-time cross-app handoff code (minted on the public site after a
+   * successful payment) for a fresh token pair on this app.
+   */
+  exchangeHandoff: (code: string) =>
+    api<AuthResponse>("/auth/handoff/exchange", { method: "POST", body: { code } }),
+
   signout: () => {
     const refreshToken = getRefreshToken();
     return api<{ message: string }>("/auth/signout", {
@@ -339,7 +346,14 @@ export const templatesApi = {
 
 function buildListPath(
   base: string,
-  params: { status?: string; limit?: number; offset?: number; role?: ViewAs; sort?: SortOrder },
+  params: {
+    status?: string;
+    limit?: number;
+    offset?: number;
+    role?: ViewAs;
+    sort?: SortOrder;
+    upcoming?: boolean;
+  },
 ): string {
   const qs = new URLSearchParams();
   if (params.status) qs.set("status", params.status);
@@ -347,6 +361,7 @@ function buildListPath(
   if (params.offset !== undefined) qs.set("offset", String(params.offset));
   if (params.role) qs.set("role", params.role);
   if (params.sort) qs.set("sort", params.sort);
+  if (params.upcoming) qs.set("upcoming", "true");
   const str = qs.toString();
   return str ? `${base}?${str}` : base;
 }
@@ -355,6 +370,14 @@ function buildListPath(
 export const bookingsApi = {
   list: (status?: string, limit?: number, offset?: number, role?: ViewAs, sort?: SortOrder) =>
     api<PaginatedBookings>(buildListPath("/bookings", { status, limit, offset, role, sort })),
+
+  /**
+   * Soonest sessions that have not started yet (Confirmed/Rescheduled), nearest
+   * start first. Backs the navbar countdown. Unlike `list`, the server pins the
+   * order and drops finished rows, so no client-side sorting is needed.
+   */
+  upcoming: (limit?: number, role?: ViewAs) =>
+    api<PaginatedBookings>(buildListPath("/bookings", { limit, role, upcoming: true })),
 
   get: (id: string) => api<{ booking: Booking }>(`/bookings/${id}`),
 

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useStore } from "@/store";
+import { bookingFocusHref } from "@/lib/booking-focus";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { HelpCircle, CalendarDays, IndianRupee, Clock, CheckCircle2 } from "lucide-react";
@@ -147,7 +148,7 @@ function AstrologerDashboard() {
                 {recentBookings.map((b) => (
                   <Link
                     key={b.id}
-                    to={`/bookings?id=${b.id}`}
+                    to={bookingFocusHref(b.id)}
                     className="flex items-start justify-between gap-2 rounded-md border p-3 transition-colors hover:bg-accent/50 cursor-pointer"
                   >
                     <div className="min-w-0 flex-1">
@@ -312,7 +313,7 @@ function ClientDashboard() {
                 {recentBookings.map((b) => (
                   <Link
                     key={b.id}
-                    to={`/bookings?id=${b.id}`}
+                    to={bookingFocusHref(b.id)}
                     className="flex items-start justify-between gap-2 rounded-md border p-3 transition-colors hover:bg-accent/50 cursor-pointer"
                   >
                     <div className="min-w-0 flex-1">

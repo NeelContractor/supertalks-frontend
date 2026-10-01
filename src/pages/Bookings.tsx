@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useStore } from "@/store";
 import { bookingsApi } from "@/lib/api";
@@ -32,14 +32,135 @@ import {
   PaginationLink,
 } from "@/components/ui/pagination";
 import { toast } from "sonner";
-import { CalendarDays, Clock, CheckCircle, XCircle, ChevronLeft, ChevronRight } from "lucide-react";
+import { astrologerSiteUrl } from "@/lib/site";
+import { focusKeyFrom, resolveFocus, shouldDismissFocus } from "@/lib/booking-focus";
+import type { ViewKey } from "@/lib/booking-focus";
+import { CalendarDays, Clock, CheckCircle, XCircle, ChevronLeft, ChevronRight, ExternalLink, X } from "lucide-react";
 
 const PAGE_SIZE = 10;
+
+function getStatusVariant(status: string): "default" | "secondary" | "destructive" | "outline" {
+  if (status === "Completed") return "default";
+  if (status === "Confirmed") return "secondary";
+  if (status.startsWith("Cancelled")) return "destructive";
+  return "outline";
+}
+
+const isUpcoming = (b: Booking) => b.status === "Confirmed" && new Date(b.startAt) > new Date();
+
+/**
+ * Extracted so the same card can be rendered twice: once inside the paginated
+ * list, and once pinned above it when a deep-linked session is not part of the
+ * current filter/page.
+ */
+function BookingCard({
+  booking: b,
+  isClient,
+  cardId,
+  highlighted = false,
+  submitting = false,
+  onComplete,
+  onCancel,
+  onReschedule,
+}: {
+  booking: Booking;
+  isClient: boolean;
+  cardId?: string;
+  highlighted?: boolean;
+  submitting?: boolean;
+  onComplete?: (b: Booking) => void;
+  onCancel?: (b: Booking) => void;
+  onReschedule?: (b: Booking) => void;
+}) {
+  const siteUrl = isClient ? astrologerSiteUrl(b.astrologer?.slug) : null;
+  return (
+    <Card id={cardId} className={highlighted ? "ring-2 ring-primary" : ""}>
+      <CardHeader className="flex flex-row items-start justify-between gap-4 pb-2">
+        <div className="space-y-1">
+          <CardTitle className="text-base">
+            {isClient ? b.astrologer?.user.name ?? "Astrologer" : b.client?.name ?? "Client"}
+          </CardTitle>
+          <div className="flex items-center gap-3 text-sm text-muted-foreground">
+            <span className="flex items-center gap-1">
+              <Clock className="h-3.5 w-3.5" />
+              {new Date(b.startAt).toLocaleString()}
+            </span>
+            <span>₹{(b.pricePaise / 100).toLocaleString()}</span>
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          {siteUrl && (
+            <a
+              href={siteUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm text-primary underline-offset-4 hover:underline"
+            >
+              <span className="inline-flex items-center gap-1">
+                Visit site <ExternalLink className="h-3.5 w-3.5" />
+              </span>
+            </a>
+          )}
+          <Badge variant={getStatusVariant(b.status)}>{b.status}</Badge>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {b.meetingLink && (
+          <a
+            href={b.meetingLink}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm text-primary underline-offset-4 hover:underline"
+          >
+            Join Meeting
+          </a>
+        )}
+        {b.clientNote && <p className="text-sm text-muted-foreground mt-2">Note: {b.clientNote}</p>}
+        {b.cancellationReason && (
+          <p className="text-sm text-destructive mt-2">
+            Cancellation reason: {b.cancellationReason}
+          </p>
+        )}
+        {isUpcoming(b) && (
+          <div className="flex gap-2 mt-3">
+            {isClient ? (
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={() => onCancel?.(b)}
+              >
+                <XCircle className="h-3.5 w-3.5" />
+                Cancel Booking
+              </Button>
+            ) : (
+              <>
+                <Button size="sm" onClick={() => onComplete?.(b)} disabled={submitting}>
+                  <CheckCircle className="h-3.5 w-3.5" />
+                  Complete
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => onReschedule?.(b)}>
+                  Reschedule
+                </Button>
+                <Button size="sm" variant="destructive" onClick={() => onCancel?.(b)}>
+                  <XCircle className="h-3.5 w-3.5" />
+                  Cancel
+                </Button>
+              </>
+            )}
+          </div>
+        )}
+        <p className="text-xs text-muted-foreground mt-3">
+          Booked {new Date(b.createdAt).toLocaleString()}
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function BookingsPage() {
   const isClient = useStore((s) => s.viewAs) === "client";
   const viewAs = useStore((s) => s.viewAs);
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const [filter, setFilter] = useState("all");
   const [sort, setSort] = useState<SortOrder>("latest");
   const [page, setPage] = useState(0);
@@ -54,48 +175,133 @@ export default function BookingsPage() {
   const [cancelReason, setCancelReason] = useState("");
   const [newDateTime, setNewDateTime] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [highlightedId, setHighlightedId] = useState<string | null>(null);
 
   const load = useCallback(async (targetPage: number, force = false) => {
     try {
-      const data = await loadBookings(filter, targetPage, sort, force);
-      const highlightId = searchParams.get("id");
-      if (highlightId && targetPage === 0) {
-        setHighlightedId(highlightId);
-        setSearchParams({}, { replace: true });
-      }
-      return data;
+      return await loadBookings(filter, targetPage, sort, force);
     } catch {
       toast.error("Failed to load bookings");
       return null;
     }
-  }, [filter, sort, loadBookings, searchParams, setSearchParams]);
+  }, [filter, sort, loadBookings]);
 
   useEffect(() => {
     void load(page);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filter, sort, page, viewAs]);
 
+  // The focus target is keyed on the id *and* the nonce, and is deliberately
+  // independent of `load`. The navbar bell is a client-side link, so arriving
+  // from it while already on /bookings changes nothing but the query string:
+  // folding this into the loader effect meant the second click did nothing at
+  // all, because filter/sort/page never change.
+  const focusParam = searchParams.get("id");
+  const focusNonce = searchParams.get("t");
+  const focusKey = focusKeyFrom(focusParam, focusNonce);
+
+  const [focusId, setFocusId] = useState<string | null>(null);
+  const [focusBooking, setFocusBooking] = useState<Booking | null>(null);
+  const [focusFailed, setFocusFailed] = useState(false);
+  const [highlightedId, setHighlightedId] = useState<string | null>(null);
+  // Bumped on every focus so re-picking the *same* session still re-runs the
+  // scroll/ring effects. Setting state to a value it already holds would bail
+  // out of the re-render and leave the highlight looking already-consumed.
+  const [focusTick, setFocusTick] = useState(0);
+
   useEffect(() => {
-    if (!loading && highlightedId) {
-      const el = document.getElementById(`booking-${highlightedId}`);
-      if (el) {
-        el.scrollIntoView({ behavior: "smooth", block: "center" });
-      }
-      const id = highlightedId;
-      const timeout = setTimeout(() => {
-        const el2 = document.getElementById(`booking-${id}`);
-        if (el2) el2.classList.remove("ring-2", "ring-primary");
-      }, 2000);
-      return () => clearTimeout(timeout);
+    if (!focusKey || !focusParam) {
+      setFocusId(null);
+      setFocusBooking(null);
+      setFocusFailed(false);
+      return;
     }
-  }, [loading, highlightedId]);
+    let cancelled = false;
+    setFocusId(focusParam);
+    setFocusBooking(null);
+    setFocusFailed(false);
+    // Highlight straight away so a cached list row lights up without waiting
+    // on the round-trip; the pin below covers the case where it is not there.
+    setHighlightedId(focusParam);
+    setFocusTick((n) => n + 1);
+    bookingsApi
+      .get(focusParam)
+      .then(({ booking }) => {
+        if (!cancelled) setFocusBooking(booking);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setFocusFailed(true);
+        toast.error("That booking could not be loaded");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [focusKey, focusParam]);
+
+  const clearFocus = useCallback(() => {
+    setFocusId(null);
+    setFocusBooking(null);
+    setFocusFailed(false);
+    setHighlightedId(null);
+    // The query string is left alone on purpose: keeping `?id=` means a
+    // refresh or a shared link still re-focuses, and the bell's nonce makes a
+    // repeat click a real navigation instead of a no-op.
+  }, []);
+
+  // Changing what you are looking at dismisses the pin, otherwise it would
+  // follow the user around a list it no longer belongs to. `viewAs` is in the
+  // deps because the pinned snapshot is role-scoped: keeping it across a
+  // switch would show one side's booking inside the other side's list.
+  //
+  // This compares against the *previously seen* values rather than skipping
+  // the first run with a ref. StrictMode deliberately double-invokes effects on
+  // mount, and a "first run" ref guard reads the second invocation as a real
+  // change, so it called clearFocus() on every mount and wiped the highlight
+  // before the card could ever render. Comparing values makes an identical
+  // re-run a genuine no-op.
+  const lastView = useRef<ViewKey>({ filter, sort, page, viewAs });
+  useEffect(() => {
+    const prev = lastView.current;
+    lastView.current = { filter, sort, page, viewAs };
+    if (!shouldDismissFocus(prev, { filter, sort, page, viewAs })) return;
+    clearFocus();
+  }, [filter, sort, page, viewAs, clearFocus]);
+
+  // The list only holds 10 rows of the current filter/page, while the bell
+  // links the *soonest* upcoming session. With the default `latest` sort
+  // (newest start first) that session is usually on the last page, so pin it
+  // above the list when the row is not actually rendered.
+  const { pinned: focusPinned } = resolveFocus(
+    focusId,
+    bookings.map((b) => b.id),
+    loading,
+  );
+
+  useEffect(() => {
+    if (!highlightedId) return;
+    const el = document.getElementById(`booking-${highlightedId}`);
+    // Wait for the target to actually exist before doing anything. Arriving
+    // here from another page means the list is still in flight, so the row is
+    // not in the DOM yet; starting the ring timer now would expire the
+    // highlight before the card ever rendered. Re-running on `loading` /
+    // focusPinned / focusBooking picks it up as soon as the row (or the pin)
+    // appears.
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    // Clearing state instead of stripping the class keeps React in charge of
+    // the ring, so it cannot be re-applied by an unrelated re-render.
+    const timeout = setTimeout(() => setHighlightedId(null), 4000);
+    return () => clearTimeout(timeout);
+  }, [highlightedId, focusTick, loading, focusPinned, focusBooking]);
 
   const handleComplete = async (booking: Booking) => {
     setSubmitting(true);
     try {
       await bookingsApi.complete(booking.id);
       toast.success("Booking marked as completed");
+      // The pinned copy is a snapshot from before the change, so drop the
+      // focus and let the refreshed list speak for itself.
+      clearFocus();
       setPage(0);
       void load(0, true);
     } catch (err: unknown) {
@@ -113,6 +319,7 @@ export default function BookingsPage() {
       toast.success("Booking cancelled");
       setCancelDialog(null);
       setCancelReason("");
+      clearFocus();
       setPage(0);
       void load(0, true);
     } catch (err: unknown) {
@@ -131,6 +338,7 @@ export default function BookingsPage() {
       toast.success("Booking rescheduled");
       setRescheduleDialog(null);
       setNewDateTime("");
+      clearFocus();
       setPage(0);
       void load(0, true);
     } catch (err: unknown) {
@@ -149,15 +357,15 @@ export default function BookingsPage() {
     CancelledByClient: counts?.Cancelled ?? bookings.filter((b) => b.status.startsWith("Cancelled")).length,
   };
 
-  const getStatusVariant = (status: string): "default" | "secondary" | "destructive" | "outline" => {
-    if (status === "Completed") return "default";
-    if (status === "Confirmed") return "secondary";
-    if (status.startsWith("Cancelled")) return "destructive";
-    return "outline";
+  const openCancel = (b: Booking) => {
+    setCancelDialog(b);
+    setCancelReason("");
   };
 
-  const isUpcoming = (b: Booking) =>
-    b.status === "Confirmed" && new Date(b.startAt) > new Date();
+  const openReschedule = (b: Booking) => {
+    setRescheduleDialog(b);
+    setNewDateTime("");
+  };
 
   return (
     <div className="space-y-6">
@@ -179,9 +387,9 @@ export default function BookingsPage() {
       >
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <TabsList>
-            <TabsTrigger value="all">All ({statusCounts.all})</TabsTrigger>
-            <TabsTrigger value="Confirmed">Upcoming ({statusCounts.Confirmed})</TabsTrigger>
-            <TabsTrigger value="Completed">Completed ({statusCounts.Completed})</TabsTrigger>
+            <TabsTrigger className="hover:cursor-pointer" value="all">All ({statusCounts.all})</TabsTrigger>
+            <TabsTrigger className="hover:cursor-pointer" value="Confirmed">Upcoming ({statusCounts.Confirmed})</TabsTrigger>
+            <TabsTrigger className="hover:cursor-pointer" value="Completed">Completed ({statusCounts.Completed})</TabsTrigger>
           </TabsList>
 
           <Select
@@ -191,17 +399,49 @@ export default function BookingsPage() {
               setPage(0);
             }}
           >
-            <SelectTrigger className="w-full md:w-[140px]" aria-label="Sort bookings">
+            <SelectTrigger className="w-full md:w-[140px] hover:cursor-pointer" aria-label="Sort bookings">
               <SelectValue placeholder="Sort" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="latest">Latest</SelectItem>
-              <SelectItem value="oldest">Oldest</SelectItem>
+              <SelectItem className="hover:cursor-pointer" value="latest">Latest</SelectItem>
+              <SelectItem className="hover:cursor-pointer" value="oldest">Oldest</SelectItem>
             </SelectContent>
           </Select>
         </div>
 
         <TabsContent value={filter}>
+          {focusPinned ? (
+            <div className="mb-4 space-y-2">
+              <div className="flex items-center justify-between gap-2 rounded-md border border-primary/40 bg-primary/5 px-3 py-2">
+                <p className="text-xs text-muted-foreground">
+                  {focusFailed
+                    ? "That booking is no longer available."
+                    : "Showing the session you picked \u2014 it is outside the current tab and page."}
+                </p>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  title="Dismiss"
+                  aria-label="Dismiss selected booking"
+                  onClick={clearFocus}
+                >
+                  <X className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+              {focusBooking && (
+                <BookingCard
+                  booking={focusBooking}
+                  isClient={isClient}
+                  cardId={focusBooking.id ? `booking-${focusBooking.id}` : undefined}
+                  highlighted={highlightedId === focusBooking.id}
+                  submitting={submitting}
+                  onComplete={handleComplete}
+                  onCancel={openCancel}
+                  onReschedule={openReschedule}
+                />
+              )}
+            </div>
+          ) : null}
           {loading ? (
             <div className="flex items-center justify-center py-20">
               <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
@@ -214,95 +454,17 @@ export default function BookingsPage() {
           ) : (
             <div className="space-y-4">
               {bookings.map((b) => (
-                <Card
+                <BookingCard
                   key={b.id}
-                  id={`booking-${b.id}`}
-                  className={highlightedId === b.id ? "ring-2 ring-primary" : ""}
-                >
-                  <CardHeader className="flex flex-row items-start justify-between gap-4 pb-2">
-                    <div className="space-y-1">
-                      <CardTitle className="text-base">
-                        {isClient ? b.astrologer?.user.name ?? "Astrologer" : b.client?.name ?? "Client"}
-                      </CardTitle>
-                      <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                        <span className="flex items-center gap-1">
-                          <Clock className="h-3.5 w-3.5" />
-                          {new Date(b.startAt).toLocaleString()}
-                        </span>
-                        <span>₹{(b.pricePaise / 100).toLocaleString()}</span>
-                      </div>
-                    </div>
-                    <Badge variant={getStatusVariant(b.status)}>{b.status}</Badge>
-                  </CardHeader>
-                  <CardContent>
-                    {b.meetingLink && (
-                      <a
-                        href={b.meetingLink}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-sm text-primary underline-offset-4 hover:underline"
-                      >
-                        Join Meeting
-                      </a>
-                    )}
-                    {b.clientNote && (
-                      <p className="text-sm text-muted-foreground mt-2">Note: {b.clientNote}</p>
-                    )}
-                    {b.cancellationReason && (
-                      <p className="text-sm text-destructive mt-2">
-                        Cancellation reason: {b.cancellationReason}
-                      </p>
-                    )}
-                    {isUpcoming(b) && (
-                      <div className="flex gap-2 mt-3">
-                        {isClient ? (
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            onClick={() => {
-                              setCancelDialog(b);
-                              setCancelReason("");
-                            }}
-                          >
-                            <XCircle className="h-3.5 w-3.5" />
-                            Cancel Booking
-                          </Button>
-                        ) : (
-                          <>
-                            <Button size="sm" onClick={() => handleComplete(b)} disabled={submitting}>
-                              <CheckCircle className="h-3.5 w-3.5" />
-                              Complete
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => {
-                                setRescheduleDialog(b);
-                                setNewDateTime("");
-                              }}
-                            >
-                              Reschedule
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="destructive"
-                              onClick={() => {
-                                setCancelDialog(b);
-                                setCancelReason("");
-                              }}
-                            >
-                              <XCircle className="h-3.5 w-3.5" />
-                              Cancel
-                            </Button>
-                          </>
-                        )}
-                      </div>
-                    )}
-                    <p className="text-xs text-muted-foreground mt-3">
-                      Booked {new Date(b.createdAt).toLocaleString()}
-                    </p>
-                  </CardContent>
-                </Card>
+                  booking={b}
+                  isClient={isClient}
+                  cardId={`booking-${b.id}`}
+                  highlighted={highlightedId === b.id}
+                  submitting={submitting}
+                  onComplete={handleComplete}
+                  onCancel={openCancel}
+                  onReschedule={openReschedule}
+                />
               ))}
             </div>
           )}

@@ -4,7 +4,8 @@ import { useStore } from "@/store";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { HelpCircle } from "lucide-react";
+import { astrologerSiteUrl } from "@/lib/site";
+import { ExternalLink, HelpCircle } from "lucide-react";
 
 const CLOSED_STATUSES = ["Rejected", "Refunded"];
 const OPEN_STATUSES = new Set(["PendingPayment", "Queued"]);
@@ -99,40 +100,57 @@ export default function ClientQuestionsPage() {
             </div>
           ) : (
             <div className="space-y-3">
-              {pageQuestions.map((q) => (
-                <Card
-                  key={q.id}
-                  className="cursor-pointer transition-colors hover:bg-accent/50"
-                  onClick={() => navigate(`/questions/${q.id}`)}
-                >
-                  <CardContent className="flex items-start justify-between gap-3 p-4">
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium line-clamp-1">{q.questionText}</p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {q.astrologer?.user.name ?? "Astrologer"}
-                        {q.category ? ` · ${q.category}` : ""}
-                        {q.lastMessage
-                          ? ` · ${q.lastMessage.senderRole === "Astrologer" ? "Astrologer" : "You"}: ${q.lastMessage.body.slice(0, 60)}`
-                          : ""}
-                      </p>
-                    </div>
-                    <Badge
-                      variant={
-                        q.status === "Answered"
-                          ? "default"
-                          : q.status === "Queued"
-                            ? "secondary"
-                            : CLOSED_STATUSES.includes(q.status)
-                              ? "destructive"
-                              : "outline"
-                      }
-                      className="shrink-0"
-                    >
-                      {q.status}
-                    </Badge>
-                  </CardContent>
-                </Card>
-              ))}
+              {pageQuestions.map((q) => {
+                const siteUrl = astrologerSiteUrl(q.astrologer?.slug);
+                return (
+                  <Card
+                    key={q.id}
+                    className="cursor-pointer transition-colors hover:bg-accent/50"
+                    onClick={() => navigate(`/questions/${q.id}`)}
+                  >
+                    <CardContent className="flex items-start justify-between gap-3 p-4">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium line-clamp-1">{q.questionText}</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {q.astrologer?.user.name ?? "Astrologer"}
+                          {q.category ? ` · ${q.category}` : ""}
+                          {q.lastMessage
+                            ? ` · ${q.lastMessage.senderRole === "Astrologer" ? "Astrologer" : "You"}: ${q.lastMessage.body.slice(0, 60)}`
+                            : ""}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-2">
+                        {siteUrl && (
+                          <a
+                            href={siteUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="text-xs text-primary underline-offset-4 hover:underline"
+                          >
+                            <span className="inline-flex items-center gap-1">
+                              Visit site <ExternalLink className="h-3 w-3" />
+                            </span>
+                          </a>
+                        )}
+                        <Badge
+                          variant={
+                            q.status === "Answered"
+                              ? "default"
+                              : q.status === "Queued"
+                                ? "secondary"
+                                : CLOSED_STATUSES.includes(q.status)
+                                  ? "destructive"
+                                  : "outline"
+                          }
+                        >
+                          {q.status}
+                        </Badge>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           )}
         </TabsContent>

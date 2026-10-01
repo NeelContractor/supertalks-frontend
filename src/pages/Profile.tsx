@@ -16,10 +16,18 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Plus, Trash2, TriangleAlert } from "lucide-react";
+import { Plus, Trash2, TriangleAlert, HelpCircle } from "lucide-react";
+import { useCoarsePointer } from "@/hooks/use-coarse-pointer";
+import { cn } from "@/lib/utils";
+// Imported rather than referenced as "/images/...": this server's catch-all
+// route answers every unmatched path with index.html, so nothing under public/
+// is ever served and a plain URL would hand the browser HTML for the image.
+import customInputBoxSm from "../../public/images/custom_input_box_sm.png";
 
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -76,6 +84,11 @@ export default function ProfilePage() {
   const refreshProfile = useStore((s) => s.refreshProfile);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("bio");
+
+  // The custom question box preview is a hover tooltip on pointer devices, but
+  // Radix will not open it from a tap, so touch gets an explicit open-on-tap.
+  const coarsePointer = useCoarsePointer();
+  const [tipOpen, setTipOpen] = useState(false);
 
   // Bio form
   const [bio, setBio] = useState("");
@@ -382,10 +395,10 @@ export default function ProfilePage() {
 
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="flex w-full justify-start overflow-x-auto md:w-auto md:justify-center md:overflow-visible">
-          <TabsTrigger value="bio">Bio & Info</TabsTrigger>
-          <TabsTrigger value="pricing">Pricing</TabsTrigger>
-          <TabsTrigger value="availability">Availability</TabsTrigger>
-          <TabsTrigger value="exceptions">Exceptions</TabsTrigger>
+          <TabsTrigger className="hover:cursor-pointer" value="bio">Bio & Info</TabsTrigger>
+          <TabsTrigger className="hover:cursor-pointer" value="pricing">Pricing</TabsTrigger>
+          <TabsTrigger className="hover:cursor-pointer" value="availability">Availability</TabsTrigger>
+          <TabsTrigger className="hover:cursor-pointer" value="exceptions">Exceptions</TabsTrigger>
         </TabsList>
 
         {/* Bio Tab */}
@@ -465,7 +478,96 @@ export default function ProfilePage() {
 
             <Card className="gap-7 pb-7">
               <CardHeader>
-                <CardTitle>Custom Question Box</CardTitle>
+                <div className="flex items-center gap-1.5">
+                  <CardTitle>Custom Question Box</CardTitle>
+                  {/* Touch gets a tap-driven popover and pointer devices get the
+                      hover tooltip. A tooltip cannot do this job on a phone: it
+                      only opens on hover or focus, and the touch pointer is
+                      destroyed on touchend, which fires pointerleave and closes
+                      the panel again the instant it appears. */}
+                  {(() => {
+                    const trigger = (
+                      <button
+                        type="button"
+                        aria-label="What is the custom question box?"
+                        // 44px on touch, where the bare icon would be a 24px target.
+                        // Keyed off the input type rather than a width breakpoint, so
+                        // a touch tablet keeps the large target too.
+                        className={cn(
+                          "flex shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                          coarsePointer ? "h-11 w-11" : "-my-2.5 h-6 w-6",
+                        )}
+                      >
+                        <HelpCircle className="h-4 w-4" />
+                      </button>
+                    );
+                    // p-0 lets the preview run edge to edge with the copy in its
+                    // own padded block below. Width is capped against the viewport
+                    // so the panel cannot spill off a narrow phone, and
+                    // collisionPadding keeps it clear of the screen edge.
+                    const panelClass =
+                      "w-[calc(100vw-1.5rem)] max-w-xs overflow-hidden p-0";
+                    // The shared TooltipContent is themed dark (bg-foreground), so
+                    // the pointer variant is re-skinned onto the popover's light
+                    // surface. Without this the description is white-on-black on
+                    // desktop and dark-on-white on a phone.
+                    //
+                    // The primitive's arrow is a 10px square rotated 45 degrees,
+                    // which reads as a detached diamond on this panel and, now that
+                    // the surface is light, cuts a notch into its own border. The
+                    // popover used on touch has no arrow, so the pointer variant
+                    // drops it too and lets the border and shadow carry the
+                    // connection to the icon.
+                    const lightPanelClass = cn(
+                      panelClass,
+                      "border bg-popover text-popover-foreground shadow-md",
+                    );
+                    const body = (
+                      <>
+                        <img
+                          src={customInputBoxSm}
+                          alt="The custom question box as visitors see it on your website"
+                          className="aspect-[4/3] w-full object-cover"
+                        />
+                        <div className="space-y-1 p-3">
+                          <p className="font-medium">Let clients ask their own question</p>
+                          <p className="text-muted-foreground">
+                            Adds a free-text box under your listed questions, so visitors can ask
+                            something you have not prewritten.
+                          </p>
+                        </div>
+                      </>
+                    );
+                    return coarsePointer ? (
+                      <Popover open={tipOpen} onOpenChange={setTipOpen}>
+                        <PopoverTrigger asChild>{trigger}</PopoverTrigger>
+                        <PopoverContent
+                          side="bottom"
+                          align="start"
+                          collisionPadding={12}
+                          sideOffset={6}
+                          className={panelClass}
+                        >
+                          {body}
+                        </PopoverContent>
+                      </Popover>
+                    ) : (
+                      <Tooltip>
+                        <TooltipTrigger asChild>{trigger}</TooltipTrigger>
+                        <TooltipContent
+                          arrow={false}
+                          side="bottom"
+                          align="start"
+                          collisionPadding={12}
+                          sideOffset={6}
+                          className={lightPanelClass}
+                        >
+                          {body}
+                        </TooltipContent>
+                      </Tooltip>
+                    );
+                  })()}
+                </div>
                 <CardDescription>
                   Let clients write their own question on your website, below the questions you have
                   already listed.
@@ -484,6 +586,7 @@ export default function ProfilePage() {
                     </p>
                   </div>
                   <Switch
+                    className="hover:cursor-pointer"
                     id="allow-custom-questions"
                     checked={allowCustomQuestions}
                     disabled={savingCustom}

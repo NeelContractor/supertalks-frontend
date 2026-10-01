@@ -3,6 +3,7 @@ import { useAuth } from "@/contexts/auth";
 import { useStore } from "@/store";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { BookingBell } from "@/components/BookingBell";
 import {
   LayoutDashboard,
   HelpCircle,
@@ -91,6 +92,7 @@ export function Navbar() {
               </button>
             </div>
           )} */}
+          <BookingBell />
           <Avatar className="h-8 w-8">
             <AvatarFallback className="text-xs">
               {user?.name?.charAt(0)?.toUpperCase() ?? "?"}
