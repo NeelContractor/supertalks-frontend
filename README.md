@@ -100,7 +100,6 @@ The frontend talks to the backend at `http://localhost:3000` (`src/lib/api.ts`).
 
 # TODO 
 
-- customize admin dashboard for astrologer and client
 - fix client chat window ui the input box is getting to bottom to scroll and My Questions etc things are taking a lot of space
 
 - phonepe integation - test mode working
@@ -111,14 +110,8 @@ The frontend talks to the backend at `http://localhost:3000` (`src/lib/api.ts`).
 
 - signup -> register (if not register already, if register dont show this page) -> dashboard (take user details)
 
-- when client completed proceed to payment is completed show a sonner of success or failed. if success on show successfully payment and a dashboard button to redirect or directly redirect the user to dashbaord. --- probably done
-
 - username must be unique
 
 - add logic to get all the location on the birth place is there any way? does shadcn input box has feature for this? as a person can make mistakes while writing place name. https://developers.google.com/maps/documentation/javascript/legacy/place-autocomplete
 
 thinking to add a feature in customize tab's Start from a palette section to add a random theme selector. by clicking on it would randomly select colour and fonts, just this two to create website theme
-
-- dont show Book a Session and Ask a Question section on the customize tab
-
-- fix the navbar content on mobile view

@@ -684,11 +684,21 @@ export default function WebsitePage() {
   }
 
   const deviceInfo = DEVICES[device];
-  const selectedSection = selected === "design"
-    ? null
-    : site.sections.find((sec) => sec.id === selected) ?? null;
+  // The booking and question sections are rendered by the platform on every
+  // live site and have nothing to customise, so they are not offered as
+  // editable sections here - they would only ever show a "can't edit" notice.
+  const editableSections = site.sections.filter((sec) => !ESSENTIAL_SECTIONS.has(sec.id));
+  // A selection pointing at a hidden section (or a stale id) falls back to the
+  // design panel instead of rendering an empty properties panel.
+  const activeSectionId = editableSections.some((sec) => sec.id === selected)
+    ? selected
+    : "design";
+  const selectedSection =
+    activeSectionId === "design"
+      ? null
+      : editableSections.find((sec) => sec.id === activeSectionId) ?? null;
   const availableSections = schema.sections.filter(
-    (f) => !site.sections.some((sec) => sec.id === f.id),
+    (f) => !site.sections.some((sec) => sec.id === f.id) && !ESSENTIAL_SECTIONS.has(f.id),
   );
 
   return (
@@ -835,7 +845,7 @@ export default function WebsitePage() {
         <div className="flex min-h-0 min-w-0 flex-col gap-3">
           <div className="flex items-center gap-1.5 overflow-x-auto rounded-lg border bg-background px-3 py-2">
             <OptionPill
-              active={selected === "design"}
+              active={activeSectionId === "design"}
               onClick={() => {
                 setSelected("design");
                 setActiveFieldKey(null);
@@ -844,10 +854,10 @@ export default function WebsitePage() {
               <LayoutTemplate className="h-3.5 w-3.5" />
               Site Design
             </OptionPill>
-            {site.sections.map((section) => (
+            {editableSections.map((section) => (
               <OptionPill
                 key={section.id}
-                active={selected === section.id}
+                active={activeSectionId === section.id}
                 onClick={() => {
                   setSelected(section.id);
                   setActiveFieldKey(null);
@@ -879,13 +889,13 @@ export default function WebsitePage() {
         </div>
 
         {/* Options panel */}
-        <aside className="min-h-0 min-w-0 max-h-[45vh] overflow-y-auto rounded-lg border bg-background p-4 md:h-full md:max-h-none">
+        <aside className="min-h-0 min-w-0 max-h-[75vh] overflow-y-auto rounded-lg border bg-background p-4 md:h-full md:max-h-none">
           <h2 className="mb-3 text-sm font-semibold">
-            {selected === "design"
+            {activeSectionId === "design"
               ? "Site Design"
               : selectedSection?.name ?? "Properties"}
           </h2>
-          {selected === "design" ? (
+          {activeSectionId === "design" ? (
             <DesignTokens
               values={site.design}
               onPatch={patchDesign}

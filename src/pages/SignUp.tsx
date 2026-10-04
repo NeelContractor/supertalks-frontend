@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Sparkles, UserRound } from "lucide-react";
+import { ApiError } from "@/lib/api";
 
 type Role = "client" | "astrologer";
 
@@ -33,6 +34,28 @@ const ROLES: { value: Role; label: string; blurb: string; icon: typeof Sparkles 
   },
 ];
 
+type Field = "name" | "email" | "username" | "password";
+
+/**
+ * Signup rejects a taken username with 409 and an invalid one with 400 plus
+ * per-field details. Without this the astrologer only ever sees "Validation
+ * failed" and has to guess which box to fix, so the message is pulled out and
+ * shown against the field it belongs to.
+ */
+function errorFor(err: unknown, field: Field): string | null {
+  if (!(err instanceof ApiError)) return null;
+
+  if (err.status === 409) {
+    // "username already taken" belongs on the username box; anything else
+    // (an email clash, say) on its own field.
+    return err.message.toLowerCase().includes(field) ? err.message : null;
+  }
+
+  const details = (err.data as { details?: Record<string, string[]> } | undefined)?.details;
+  const messages = details?.[field];
+  return messages?.[0] ?? null;
+}
+
 export default function SignUpPage() {
   const { signup } = useAuth();
   const navigate = useNavigate();
@@ -42,16 +65,19 @@ export default function SignUpPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [submitError, setSubmitError] = useState<unknown>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setSubmitError(null);
     try {
       await signup({ name, email, username, password, role });
       // Clients land on the dashboard; astrologers must complete the 7-step
       // registration first.
       navigate(role === "astrologer" ? "/register" : "/dashboard", { replace: true });
     } catch (err: unknown) {
+      setSubmitError(err);
       const message = err instanceof Error ? err.message : "Registration failed";
       toast.error(message);
     } finally {
@@ -107,6 +133,11 @@ export default function SignUpPage() {
                 onChange={(e) => setName(e.target.value)}
                 required
               />
+              {errorFor(submitError, "name") && (
+                <p className="text-xs text-destructive">
+                  {errorFor(submitError, "name")}
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
@@ -118,6 +149,11 @@ export default function SignUpPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 required
               />
+              {errorFor(submitError, "email") && (
+                <p className="text-xs text-destructive">
+                  {errorFor(submitError, "email")}
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="username">Username</Label>
@@ -128,6 +164,11 @@ export default function SignUpPage() {
                 onChange={(e) => setUsername(e.target.value)}
                 required
               />
+              {errorFor(submitError, "username") && (
+                <p className="text-xs text-destructive">
+                  {errorFor(submitError, "username")}
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
@@ -139,6 +180,11 @@ export default function SignUpPage() {
                 required
                 minLength={8}
               />
+              {errorFor(submitError, "password") && (
+                <p className="text-xs text-destructive">
+                  {errorFor(submitError, "password")}
+                </p>
+              )}
             </div>
           </CardContent>
           <CardFooter className="flex flex-col gap-4 mt-2">

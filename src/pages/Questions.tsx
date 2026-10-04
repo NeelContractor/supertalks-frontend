@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { useStore } from "@/store";
 import { questionsApi } from "@/lib/api";
 import type { Question, SortOrder } from "@/types";
+import { questionStatusLabel } from "@/lib/status-labels";
 import { Button } from "@/components/ui/button";
 // DISABLED (commented out) for now — only the Reject dialog used these.
 // import { Textarea } from "@/components/ui/textarea";
@@ -163,7 +164,7 @@ export default function QuestionsPage() {
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <TabsList className="flex w-full justify-start overflow-x-auto md:w-auto md:justify-center md:overflow-visible">
             <TabsTrigger className="hover:cursor-pointer" value="all">All ({statusCounts.all})</TabsTrigger>
-            <TabsTrigger className="hover:cursor-pointer" value="Queued">Pending ({statusCounts.Queued})</TabsTrigger>
+            <TabsTrigger className="hover:cursor-pointer" value="Queued">Unanswered ({statusCounts.Queued})</TabsTrigger>
             <TabsTrigger className="hover:cursor-pointer" value="Answered">Answered ({statusCounts.Answered})</TabsTrigger>
             {/* <TabsTrigger value="Rejected">Rejected ({statusCounts.Rejected})</TabsTrigger> */}
           </TabsList>
@@ -219,7 +220,7 @@ export default function QuestionsPage() {
                               : "outline"
                       }
                     >
-                      {q.status}
+                      {questionStatusLabel(q.status)}
                     </Badge>
                   </CardHeader>
                   <CardContent className="space-y-3">

@@ -1,6 +1,20 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/auth";
+import {
+    SPECIALTIES,
+    emptyRegisterData,
+    emptyService,
+    type RegisterFormData,
+    type ServiceEntry,
+    type ServiceMode,
+    type Specialty,
+} from "@/lib/register-form";
+import {
+    clearRegisterDraft,
+    loadRegisterDraft,
+    saveRegisterDraft,
+} from "@/lib/register-draft";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,216 +29,27 @@ import {
 } from "@/components/ui/input-otp"
 
 /* ------------------------------------------------------------------ */
-/*  Types                                                              */
-/* ------------------------------------------------------------------ */
-
-type Specialty =
-  | "Vedic Astrology"
-  | "Tarot"
-  | "Numerology"
-  | "Vastu"
-  | "Lal Kitab"
-  | "KP Astrology";
-
-const SPECIALTIES: Specialty[] = [
-  "Vedic Astrology",
-  "Tarot",
-  "Numerology",
-  "Vastu",
-  "Lal Kitab",
-  "KP Astrology",
-];
-
-type ServiceMode = "Online" | "Offline";
-
-interface ServiceEntry {
-  id: string;
-  name: string;
-  description: string;
-  duration: string;
-  price: string;
-  mode: ServiceMode;
-  availableDays: string;
-  availableTime: string;
-}
-
-interface RegisterFormData {
-  // Step 1 — Account
-  fullName: string;
-  mobile: string;
-  otp: string;
-  email: string;
-  password: string;
-  country: string;
-  ageConfirmed: boolean;
-  infoAccurate: boolean;
-
-  // Step 2 — Astrologer profile
-  displayName: string;
-  profilePhoto: string;
-  city: string;
-  languages: string;
-  gender: string;
-  yearsExperience: string;
-  specialties: Specialty[];
-  shortBio: string;
-  detailedIntro: string;
-  education: string;
-  certification: string;
-  guruLineage: string;
-  otherPlatforms: string;
-  instagram: string;
-  youtube: string;
-  facebook: string;
-  website: string;
-
-  // Step 3 — Website information
-  websiteUrl: string;
-  heroHeadline: string;
-  heroDescription: string;
-  coverImage: string;
-  aboutMe: string;
-  aboutExperience: string;
-  approach: string;
-  whatsapp: string;
-  contactEmail: string;
-  siteCity: string;
-  siteCountry: string;
-
-  // Step 4 — Services
-  services: ServiceEntry[];
-
-  // Step 5 — Payment / business
-  legalName: string;
-  pan: string;
-  hasGst: "yes" | "no" | "";
-  gstin: string;
-  businessName: string;
-  bankAccountHolder: string;
-  bankAccountNumber: string;
-  ifsc: string;
-  upi: string;
-  billingAddress: string;
-
-  // Step 6 — KYC
-  kycPan: string;
-  govId: string;
-  selfieUploaded: boolean;
-  bankVerified: boolean;
-  astrologyCertificate: string;
-  diploma: string;
-  trainingCertificate: string;
-  experienceProof: string;
-  existingProfile: string;
-
-  // Step 7 — Agreements
-  agreeTerms: boolean;
-  agreePrivacy: boolean;
-  agreeDisclaimer: boolean;
-  agreeRefund: boolean;
-  agreeAccuracy: boolean;
-}
-
-const emptyService = (): ServiceEntry => ({
-  id: crypto.randomUUID(),
-  name: "",
-  description: "",
-  duration: "",
-  price: "",
-  mode: "Online",
-  availableDays: "",
-  availableTime: "",
-});
-
-const initialData: RegisterFormData = {
-  fullName: "",
-  mobile: "",
-  otp: "",
-  email: "",
-  password: "",
-  country: "",
-  ageConfirmed: false,
-  infoAccurate: false,
-
-  displayName: "",
-  profilePhoto: "",
-  city: "",
-  languages: "",
-  gender: "",
-  yearsExperience: "",
-  specialties: [],
-  shortBio: "",
-  detailedIntro: "",
-  education: "",
-  certification: "",
-  guruLineage: "",
-  otherPlatforms: "",
-  instagram: "",
-  youtube: "",
-  facebook: "",
-  website: "",
-
-  websiteUrl: "",
-  heroHeadline: "",
-  heroDescription: "",
-  coverImage: "",
-  aboutMe: "",
-  aboutExperience: "",
-  approach: "",
-  whatsapp: "",
-  contactEmail: "",
-  siteCity: "",
-  siteCountry: "",
-
-  services: [emptyService()],
-
-  legalName: "",
-  pan: "",
-  hasGst: "",
-  gstin: "",
-  businessName: "",
-  bankAccountHolder: "",
-  bankAccountNumber: "",
-  ifsc: "",
-  upi: "",
-  billingAddress: "",
-
-  kycPan: "",
-  govId: "",
-  selfieUploaded: false,
-  bankVerified: false,
-  astrologyCertificate: "",
-  diploma: "",
-  trainingCertificate: "",
-  experienceProof: "",
-  existingProfile: "",
-
-  agreeTerms: false,
-  agreePrivacy: false,
-  agreeDisclaimer: false,
-  agreeRefund: false,
-  agreeAccuracy: false,
-};
-
-/* ------------------------------------------------------------------ */
 /*  Step config                                                        */
 /* ------------------------------------------------------------------ */
 
 interface StepConfig {
-  key: string;
-  label: string;
-  hint: string;
+    key: string;
+    label: string;
+    hint: string;
 }
 
 const STEPS: StepConfig[] = [
-  { key: "account", label: "Account", hint: "Sign-up basics" },
-  { key: "profile", label: "Profile", hint: "Your public page" },
-  { key: "website", label: "Website", hint: "How it's presented" },
-  { key: "services", label: "Services", hint: "What you offer" },
-  { key: "payment", label: "Payment", hint: "Where you get paid" },
-  { key: "kyc", label: "Verification", hint: "Prove it's you" },
-  { key: "review", label: "Review", hint: "Agreements & submit" },
+    { key: "account", label: "Account", hint: "Sign-up basics" },
+    { key: "profile", label: "Profile", hint: "Your public page" },
+    { key: "website", label: "Website", hint: "How it's presented" },
+    { key: "services", label: "Services", hint: "What you offer" },
+    { key: "payment", label: "Payment", hint: "Where you get paid" },
+    { key: "kyc", label: "Verification", hint: "Prove it's you" },
+    { key: "review", label: "Review", hint: "Agreements & submit" },
 ];
+
+/** Debounce for draft writes so every keystroke doesn't hit storage. */
+const DRAFT_SAVE_DEBOUNCE_MS = 250;
 
 /* ------------------------------------------------------------------ */
 /*  Small field primitives                                             */
@@ -336,16 +161,42 @@ function SubGroup(props: { title: string; children: ReactNode }) {
 /* ------------------------------------------------------------------ */
 
 export default function Register() {
-  const { user, submitApplication } = useAuth();
-  const navigate = useNavigate();
-  const [stepIndex, setStepIndex] = useState(0);
-  const [data, setData] = useState<RegisterFormData>(initialData);
-  const [submitted, setSubmitted] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState<string | null>(null);
+    const { user, submitApplication } = useAuth();
+    const navigate = useNavigate();
+    const userId = user?.id ?? "";
+    // Read once on mount: an abandoned application resumes on the step it was
+    // left on, with everything already typed still in place.
+    const [restored] = useState(() => loadRegisterDraft(userId, STEPS.length));
+    const [stepIndex, setStepIndex] = useState(() => restored?.stepIndex ?? 0);
+    const [data, setData] = useState<RegisterFormData>(
+        () => restored?.data ?? emptyRegisterData(),
+    );
+    const [resumeNotice, setResumeNotice] = useState(restored !== null);
+    const [confirmStartOver, setConfirmStartOver] = useState(false);
+    const [submitted, setSubmitted] = useState(false);
+    const [submitting, setSubmitting] = useState(false);
+    const [submitError, setSubmitError] = useState<string | null>(null);
 
-  const update = <K extends keyof RegisterFormData>(key: K, value: RegisterFormData[K]) =>
-    setData((prev) => ({ ...prev, [key]: value }));
+    // Persist the draft so a refresh, crash or sign-out mid-way is recoverable.
+    useEffect(() => {
+        if (!userId || submitted) return;
+        const timer = setTimeout(
+            () => saveRegisterDraft(userId, stepIndex, data),
+            DRAFT_SAVE_DEBOUNCE_MS,
+        );
+        return () => clearTimeout(timer);
+    }, [userId, stepIndex, data, submitted]);
+
+    // Don't lose the last few keystrokes if the tab is closed while debouncing.
+    useEffect(() => {
+        if (!userId || submitted) return;
+        const flush = () => saveRegisterDraft(userId, stepIndex, data);
+        window.addEventListener("pagehide", flush);
+        return () => window.removeEventListener("pagehide", flush);
+    }, [userId, stepIndex, data, submitted]);
+
+    const update = <K extends keyof RegisterFormData>(key: K, value: RegisterFormData[K]) =>
+        setData((prev) => ({ ...prev, [key]: value }));
 
   const toggleSpecialty = (s: Specialty) =>
     setData((prev) => ({
@@ -361,44 +212,62 @@ export default function Register() {
       services: prev.services.map((s) => (s.id === id ? { ...s, ...patch } : s)),
     }));
 
-  const addService = () =>
-    setData((prev) => ({ ...prev, services: [...prev.services, emptyService()] }));
+    const addService = () =>
+        setData((prev) => ({ ...prev, services: [...prev.services, emptyService()] }));
 
-  const removeService = (id: string) =>
-    setData((prev) => ({
-      ...prev,
-      services: prev.services.length > 1 ? prev.services.filter((s) => s.id !== id) : prev.services,
-    }));
+    const removeService = (id: string) =>
+        setData((prev) => ({
+            ...prev,
+            services: prev.services.length > 1 ? prev.services.filter((s) => s.id !== id) : prev.services,
+        }));
 
-  const step = STEPS[stepIndex]!;
-  const isLast = stepIndex === STEPS.length - 1;
-  const isFirst = stepIndex === 0;
+    const dismissResumeNotice = () => {
+        setResumeNotice(false);
+        setConfirmStartOver(false);
+    };
 
-  const goNext = () => setStepIndex((i) => Math.min(i + 1, STEPS.length - 1));
-  const goBack = () => setStepIndex((i) => Math.max(i - 1, 0));
+    const startOver = () => {
+        if (!confirmStartOver) {
+            setConfirmStartOver(true);
+            return;
+        }
+        clearRegisterDraft(userId);
+        setData(emptyRegisterData());
+        setStepIndex(0);
+        setResumeNotice(false);
+        setConfirmStartOver(false);
+    };
 
-  const canSubmit =
-    data.agreeTerms &&
-    data.agreePrivacy &&
-    data.agreeDisclaimer &&
-    data.agreeRefund &&
-    data.agreeAccuracy;
+    const step = STEPS[stepIndex]!;
+    const isLast = stepIndex === STEPS.length - 1;
+    const isFirst = stepIndex === 0;
 
-  const handleSubmit = async () => {
-    if (!canSubmit) return;
-    setSubmitting(true);
-    setSubmitError(null);
-    try {
-      await submitApplication({ ...data });
-      setSubmitted(true);
-    } catch (err) {
-      setSubmitError(
-        err instanceof Error ? err.message : "Could not submit your registration. Please try again.",
-      );
-    } finally {
-      setSubmitting(false);
-    }
-  };
+    const goNext = () => setStepIndex((i) => Math.min(i + 1, STEPS.length - 1));
+    const goBack = () => setStepIndex((i) => Math.max(i - 1, 0));
+
+    const canSubmit =
+        data.agreeTerms &&
+        data.agreePrivacy &&
+        data.agreeDisclaimer &&
+        data.agreeRefund &&
+        data.agreeAccuracy;
+
+    const handleSubmit = async () => {
+        if (!canSubmit) return;
+        setSubmitting(true);
+        setSubmitError(null);
+        try {
+            await submitApplication({ ...data });
+            clearRegisterDraft(userId);
+            setSubmitted(true);
+        } catch (err) {
+            setSubmitError(
+                err instanceof Error ? err.message : "Could not submit your registration. Please try again.",
+            );
+        } finally {
+            setSubmitting(false);
+        }
+    };
 
   if (submitted) {
     return (
@@ -422,17 +291,10 @@ export default function Register() {
             it&apos;s approved and published.
           </p>
           <div className="mt-6 flex flex-col gap-2 sm:flex-row">
-            <Button
-              variant="outline"
-              className="flex-1"
-              onClick={() => {
-                setSubmitted(false);
-                setStepIndex(0);
-              }}
-            >
-              Edit application
+            <Button className="flex-1" onClick={() => navigate("/profile?setup=1")}>
+              Set up my profile
             </Button>
-            <Button className="flex-1" onClick={() => navigate("/dashboard")}>
+            <Button variant="outline" className="flex-1" onClick={() => navigate("/dashboard")}>
               Go to dashboard
             </Button>
           </div>
@@ -457,6 +319,30 @@ export default function Register() {
         </div>
 
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-[220px_1fr]">
+          {resumeNotice && (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-primary/30 bg-primary/5 px-4 py-3 lg:col-span-2">
+              <p className="text-sm text-foreground">
+                Picked up where you left off —{" "}
+                <span className="font-medium">{step.label}</span> (step {stepIndex + 1} of{" "}
+                {STEPS.length}).
+              </p>
+              <div className="flex items-center gap-2">
+                <Button type="button" variant="ghost" size="sm" onClick={dismissResumeNotice}>
+                  Got it
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={startOver}
+                  onBlur={() => setConfirmStartOver(false)}
+                  className={confirmStartOver ? "border-destructive text-destructive" : undefined}
+                >
+                  {confirmStartOver ? "Erase draft and start over?" : "Start over"}
+                </Button>
+              </div>
+            </div>
+          )}
           {/* Stepper / tabs */}
           <nav aria-label="Registration steps" className="lg:sticky lg:top-10 lg:self-start">
             <ol className="flex gap-2 overflow-x-auto pb-2 lg:flex-col lg:gap-1 lg:overflow-visible lg:pb-0">
@@ -551,6 +437,11 @@ export default function Register() {
                       value={data.password}
                       onChange={(v) => update("password", v)}
                     />
+                    {restored && (
+                      <p className="mt-1.5 text-xs text-muted-foreground">
+                        Your password and OTP are never saved in the draft — please enter them again.
+                      </p>
+                    )}
                   </Field>
                 </div>
                 <div className="mt-5 space-y-3">

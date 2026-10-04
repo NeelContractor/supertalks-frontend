@@ -17,11 +17,44 @@ import ProfilePage from "@/pages/Profile";
 import WebsitePage from "@/pages/Website";
 import Register from "./pages/Register";
 
-function DashboardLayout({ children }: { children: React.ReactNode }) {
+/**
+ * `fullHeight` is for panes that own their own scrolling (the chat window):
+ * the shell is pinned to the *visible* viewport so the composer sits on the
+ * bottom edge instead of floating above a band of dead space.
+ *
+ * The plain variant keeps `min-h-screen` so long list pages scroll the document
+ * as usual.
+ */
+function DashboardLayout({
+  children,
+  fullHeight = false,
+}: {
+  children: React.ReactNode;
+  fullHeight?: boolean;
+}) {
+  if (fullHeight) {
+    return (
+      // `100dvh` tracks the visible viewport, unlike `100vh`, which on phones is
+      // measured with the browser toolbars hidden and so overshoots by their
+      // height - that overshoot is what left the empty gap under the composer.
+      <div className="flex h-[100dvh] flex-col overflow-hidden bg-muted/40">
+        <Navbar />
+        {/* MobileNav is fixed: 1px border + min-h-14 + the home-indicator inset.
+            Clearing its real height keeps the composer flush against it. */}
+        <main className="mx-auto flex w-[90%] min-h-0 flex-1 flex-col p-1 pb-[calc(3.75rem+env(safe-area-inset-bottom))] md:pb-3">
+          {children}
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-h-screen flex-col bg-muted/40">
       <Navbar />
-      <main className="mx-auto flex w-[90%] flex-1 flex-col p-3">{children}</main>
+      {/* extra bottom padding on phones clears the fixed MobileNav tab bar */}
+      <main className="mx-auto flex w-[90%] flex-1 flex-col p-1 pb-24 md:pb-3">
+        {children}
+      </main>
     </div>
   );
 }
@@ -73,7 +106,7 @@ export function App() {
             path="/questions/:id"
             element={
               <ProtectedRoute>
-                <DashboardLayout>
+                <DashboardLayout fullHeight>
                   <QuestionChatPage />
                 </DashboardLayout>
               </ProtectedRoute>

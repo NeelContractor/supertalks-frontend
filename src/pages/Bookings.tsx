@@ -34,6 +34,7 @@ import {
 import { toast } from "sonner";
 import { astrologerSiteUrl } from "@/lib/site";
 import { focusKeyFrom, resolveFocus, shouldDismissFocus } from "@/lib/booking-focus";
+import { bookingStatusLabel } from "@/lib/status-labels";
 import type { ViewKey } from "@/lib/booking-focus";
 import { CalendarDays, Clock, CheckCircle, XCircle, ChevronLeft, ChevronRight, ExternalLink, X } from "lucide-react";
 
@@ -46,6 +47,7 @@ function getStatusVariant(status: string): "default" | "secondary" | "destructiv
   return "outline";
 }
 
+/** A session still ahead of us. Mirrors the server's Upcoming tab filter. */
 const isUpcoming = (b: Booking) => b.status === "Confirmed" && new Date(b.startAt) > new Date();
 
 /**
@@ -101,7 +103,7 @@ function BookingCard({
               </span>
             </a>
           )}
-          <Badge variant={getStatusVariant(b.status)}>{b.status}</Badge>
+          <Badge variant={getStatusVariant(b.status)}>{bookingStatusLabel(b.status)}</Badge>
         </div>
       </CardHeader>
       <CardContent>
@@ -352,7 +354,7 @@ export default function BookingsPage() {
 
   const statusCounts = {
     all: counts?.all ?? total,
-    Confirmed: counts?.Confirmed ?? bookings.filter((b) => b.status === "Confirmed").length,
+    Confirmed: counts?.Confirmed ?? bookings.filter(isUpcoming).length,
     Completed: counts?.Completed ?? bookings.filter((b) => b.status === "Completed").length,
     CancelledByClient: counts?.Cancelled ?? bookings.filter((b) => b.status.startsWith("Cancelled")).length,
   };
@@ -449,7 +451,10 @@ export default function BookingsPage() {
           ) : bookings.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
               <CalendarDays className="h-12 w-12 mb-4" />
-              <p>No bookings found.</p>
+              <p>{filter === "Confirmed" ? "No upcoming sessions." : "No bookings found."}</p>
+              {filter === "Confirmed" && (
+                <p className="mt-1 text-sm">Sessions you have already had are under All.</p>
+              )}
             </div>
           ) : (
             <div className="space-y-4">

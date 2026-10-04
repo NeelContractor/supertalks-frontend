@@ -23,7 +23,7 @@ export default function OnboardPage() {
     try {
       await onboard();
       toast.success("Welcome! Your astrologer profile has been created.");
-      navigate("/profile");
+      navigate("/profile?setup=1");
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to create profile");
     } finally {

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useStore } from "@/store";
 import { bookingFocusHref } from "@/lib/booking-focus";
+import { compactAmount } from "@/lib/format";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { HelpCircle, CalendarDays, IndianRupee, Clock, CheckCircle2 } from "lucide-react";
@@ -30,8 +31,11 @@ function AstrologerDashboard() {
 
   const pendingQuestions = stats?.pendingQuestions ?? 0;
   const upcomingBookings = stats?.upcomingBookings ?? 0;
-  const totalEarnings = stats?.totalEarningsPaise ?? 0;
   const totalQuestions = stats?.totalQuestions ?? 0;
+  // Lifetime earnings can run into lakhs, which overflows the tile at text-2xl.
+  // The tile shows the short form and keeps the exact rupee figure reachable on
+  // hover and to screen readers, so nothing is actually hidden by rounding.
+  const earnings = compactAmount(stats?.totalEarningsPaise ?? 0);
 
   if (loading) {
     return (
@@ -72,8 +76,9 @@ function AstrologerDashboard() {
             <IndianRupee className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              ₹{(totalEarnings / 100).toLocaleString()}
+            <div className="text-2xl font-bold" title={earnings.exact}>
+              {earnings.short}
+              <span className="sr-only">{earnings.exact}</span>
             </div>
           </CardContent>
         </Card>

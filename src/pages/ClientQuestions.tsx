@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { astrologerSiteUrl } from "@/lib/site";
+import { questionStatusLabel } from "@/lib/status-labels";
 import { ExternalLink, HelpCircle } from "lucide-react";
 
 const CLOSED_STATUSES = ["Rejected", "Refunded"];
@@ -144,7 +145,7 @@ export default function ClientQuestionsPage() {
                                   : "outline"
                           }
                         >
-                          {q.status}
+                          {questionStatusLabel(q.status)}
                         </Badge>
                       </div>
                     </CardContent>

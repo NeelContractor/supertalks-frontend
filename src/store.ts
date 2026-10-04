@@ -127,11 +127,12 @@ interface StoreState {
   }) => Promise<void>;
   signout: () => Promise<void>;
   onboard: () => Promise<void>;
-  refreshProfile: () => Promise<void>;
+  refreshProfile: () => Promise<{ user: User; profile: AstrologerProfile } | void>;
   applyProfile: (profile: AstrologerProfile) => void;
   setViewAs: (viewAs: ViewAs) => void;
 
   loadApplication: (force?: boolean) => Promise<AstrologerApplication | null>;
+  updateMe: (patch: { name?: string; mobile?: string | null; profileImageUrl?: string | null }) => Promise<User>;
   submitApplication: (
     payload: Record<string, unknown>,
   ) => Promise<{ application: AstrologerApplication; profile: AstrologerProfile }>;
@@ -455,12 +456,38 @@ export const useStore = create<StoreState>((set, get) => ({
     return data;
   },
 
+  updateMe: async (patch: { name?: string; mobile?: string | null; profileImageUrl?: string | null }) => {
+    const data = await usersApi.updateMe(patch);
+    storeUser(data.user);
+    set({ user: data.user });
+    return data.user;
+  },
+
   landingPath: async () => {
-    const { user } = get();
+    const { user, profile } = get();
     if (user?.role === "Astrologer") {
       const application = await get().loadApplication();
       if (get().applicationError) return "/dashboard";
-      return application ? "/dashboard" : "/register";
+      if (!application) return "/register";
+      // After registration/application exists, check profile completeness.
+      try {
+        const rules = get().rules.length || 0;
+        // If rules not loaded, load them quickly
+        if (rules === 0) {
+          await get().loadAvailability();
+        }
+        const { getProfileSetupStatus } = await import("@/lib/profile-setup");
+        const status = getProfileSetupStatus(
+          profile ?? useStore.getState().profile,
+          get().rules.length
+        );
+        if (!status.complete) {
+          return "/profile?setup=1";
+        }
+      } catch (e) {
+        // ignore and go to dashboard
+      }
+      return "/dashboard";
     }
     return "/dashboard";
   },
@@ -488,6 +515,7 @@ export const useStore = create<StoreState>((set, get) => ({
       const data = await astrologerApi.getMe();
       storeUser(data.user);
       set({ user: data.user, profile: data.profile });
+      return data;
     } catch {
       // silently fail
     }
@@ -695,6 +723,7 @@ export const useAuth = () =>
       refreshProfile: s.refreshProfile,
       loadApplication: s.loadApplication,
       submitApplication: s.submitApplication,
+      updateMe: s.updateMe,
       landingPath: s.landingPath,
     })),
   );
