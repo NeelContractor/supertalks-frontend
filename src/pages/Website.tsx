@@ -119,6 +119,54 @@ const GOOGLE_FONTS = [
   "IBM Plex Sans", "Comfortaa", "Jost", "Cabin", "Hind", "Public Sans", "Josefin Sans",
 ];
 
+/**
+ * The site splits all of its text into exactly two font buckets, and each
+ * selector owns one bucket outright. `appliesTo` is shown under the selector so
+ * it is unambiguous which text changes when a font is picked — headings and
+ * buttons always move together, and so do paragraphs, sub-text and captions.
+ */
+const FONT_ROLES = [
+  {
+    key: "displayFont",
+    label: "Headings & Buttons",
+    appliesTo: "Headings, titles, menu links and button text",
+  },
+  {
+    key: "bodyFont",
+    label: "Body Text",
+    appliesTo: "Paragraphs, sub-text, captions and form text",
+  },
+] as const;
+
+function FontSelect({
+  value,
+  onChange,
+  allowInherit = false,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  allowInherit?: boolean;
+}) {
+  return (
+    <Select value={value} onValueChange={onChange}>
+      <SelectTrigger className="hover:cursor-pointer">
+        <SelectValue placeholder="Default" />
+      </SelectTrigger>
+      <SelectContent>
+        {allowInherit && <SelectItem value="inherit">Default</SelectItem>}
+        <SelectItem value="serif">Serif</SelectItem>
+        <SelectItem value="sans">Sans</SelectItem>
+        <SelectSeparator />
+        {GOOGLE_FONTS.map((font) => (
+          <SelectItem key={font} value={font} style={{ fontFamily: font }}>
+            {font}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
 const SIZE_PRESETS = [
   "12px", "13px", "14px", "15px", "16px", "18px", "20px",
   "22px", "24px", "28px", "32px", "36px", "40px", "44px",
@@ -199,6 +247,63 @@ function getValueAtPath(target: unknown, path: string): unknown {
     cur = (cur as Record<string, unknown>)[part];
   }
   return cur;
+}
+
+/**
+ * Money is stored in paise across the schema, the API and the payment flow,
+ * but the astrologer reads and types rupees - the field is labelled "Price
+ * (₹)", and the profile pricing dialog already converts at its own boundary
+ * (see EditProfileDialog's parseRupees). These fields are converted here too,
+ * so typing 5 saves 500 paise and the preview reads ₹5 instead of ₹0.05.
+ */
+const PAISE_FIELD_KEYS = new Set(["pricePaise"]);
+
+function rupeesToPaise(rupees: number): number {
+  return Math.round(rupees * 100);
+}
+
+function paiseToRupees(paise: number): number {
+  return Math.round(paise) / 100;
+}
+
+function NumberInput({
+  fieldKey,
+  field,
+  value,
+  disabled,
+  onChange,
+}: {
+  fieldKey: string;
+  field: TemplateField;
+  value: number;
+  disabled?: boolean;
+  onChange: (value: number) => void;
+}) {
+  const inPaise = PAISE_FIELD_KEYS.has(fieldKey);
+  return (
+    <div className="space-y-1">
+      <Input
+        type="number"
+        min={field.min}
+        max={field.max}
+        // A paise field is edited in rupees, so it needs paise precision
+        // (₹12.50) rather than whole units.
+        step={inPaise ? 0.01 : field.step}
+        disabled={disabled}
+        value={inPaise ? paiseToRupees(value) : value}
+        onChange={(e) => {
+          const next = parseFloat(e.target.value);
+          const amount = Number.isFinite(next) ? next : 0;
+          onChange(inPaise ? rupeesToPaise(amount) : amount);
+        }}
+      />
+      {inPaise ? (
+        <p className="text-[11px] leading-tight text-foreground/55">
+          Set 0 to charge your standard profile price instead.
+        </p>
+      ) : null}
+    </div>
+  );
 }
 
 function fieldDefault(field: TemplateField): unknown {
@@ -1090,27 +1195,15 @@ function ElementStylePanel({
         </div>
         <div className="space-y-1">
           <Label className="text-xs">Font family</Label>
-          <Select
+          <FontSelect
+            allowInherit
             value={style.fontFamily ?? "inherit"}
-            onValueChange={(v) =>
-              onStyle({ ...style, fontFamily: v === "inherit" ? "" : v })
-            }
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Default" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="inherit">Default</SelectItem>
-              <SelectItem value="serif">Serif</SelectItem>
-              <SelectItem value="sans">Sans</SelectItem>
-              <SelectSeparator />
-              {GOOGLE_FONTS.map((font) => (
-                <SelectItem key={font} value={font} style={{ fontFamily: font }}>
-                  {font}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            onChange={(v) => onStyle({ ...style, fontFamily: v === "inherit" ? "" : v })}
+          />
+          <p className="text-[11px] leading-tight text-foreground/55">
+            Overrides this element&apos;s font only. Clear it to follow the site
+            defaults.
+          </p>
         </div>
         <div className="space-y-1">
           <Label className="text-xs">Text color</Label>
@@ -1538,15 +1631,11 @@ function FieldControl({
                     onChange={(e) => onItemField?.(fieldKey, index, itemKey, e.target.value)}
                   />
                 ) : itemField.type === "number" ? (
-                  <Input
-                    type="number"
-                    min={itemField.min}
-                    max={itemField.max}
-                    step={itemField.step}
+                  <NumberInput
+                    fieldKey={itemKey}
+                    field={itemField}
                     value={typeof item[itemKey] === "number" ? (item[itemKey] as number) : 0}
-                    onChange={(e) =>
-                      onItemField?.(fieldKey, index, itemKey, parseFloat(e.target.value) || 0)
-                    }
+                    onChange={(next) => onItemField?.(fieldKey, index, itemKey, next)}
                   />
                 ) : itemField.type === "select" && itemField.options ? (
                   <Select
@@ -1627,14 +1716,12 @@ function FieldControl({
           </SelectContent>
         </Select>
       ) : field.type === "number" ? (
-        <Input
-          type="number"
-          min={field.min}
-          max={field.max}
-          step={field.step}
+        <NumberInput
+          fieldKey={fieldKey}
+          field={field}
           disabled={readonly}
           value={typeof value === "number" ? value : (field.default as number) ?? 1}
-          onChange={(e) => onPatch(parseFloat(e.target.value) || 0)}
+          onChange={onPatch}
         />
       ) : field.type === "color" ? (
         <Input
@@ -1688,6 +1775,13 @@ function DesignTokens({
       pal.darkColor === design.darkColor &&
       pal.backgroundColor === design.backgroundColor,
   )?.name;
+
+  // The two roles above cover today's schema. Any other font-shaped token is
+  // still rendered so the panel cannot silently drop a token.
+  const roleKeys = new Set<string>(FONT_ROLES.map((role) => role.key));
+  const extraFontKeys = Object.keys(values).filter(
+    (key) => key.toLowerCase().includes("font") && !roleKeys.has(key),
+  );
 
   return (
     <div className="space-y-4">
@@ -1768,29 +1862,28 @@ function DesignTokens({
         <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-foreground/60">
           Fonts
         </p>
-        <div className="grid grid-cols-2 gap-2">
-          {Object.entries(values)
-            .filter(([key]) => key.toLowerCase().includes("font"))
-            .map(([key, value]) => (
-              <div key={key} className="space-y-1.5">
-                <Label>{labelFor(key)}</Label>
-                <Select value={String(value)} onValueChange={(v) => onPatch(key, v)}>
-                  <SelectTrigger className="hover:cursor-pointer">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="serif">Serif</SelectItem>
-                    <SelectItem value="sans">Sans</SelectItem>
-                    <SelectSeparator />
-                    {GOOGLE_FONTS.map((font) => (
-                      <SelectItem key={font} value={font} style={{ fontFamily: font }}>
-                        {font}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            ))}
+        <div className="space-y-3">
+          {FONT_ROLES.map((role) => (
+            <div key={role.key} className="space-y-1.5">
+              <Label>{role.label}</Label>
+              <FontSelect
+                value={String(values[role.key] ?? "")}
+                onChange={(v) => onPatch(role.key, v)}
+              />
+              <p className="text-[11px] leading-tight text-foreground/55">
+                {role.appliesTo}
+              </p>
+            </div>
+          ))}
+          {extraFontKeys.map((key) => (
+            <div key={key} className="space-y-1.5">
+              <Label>{labelFor(key)}</Label>
+              <FontSelect
+                value={String(values[key] ?? "")}
+                onChange={(v) => onPatch(key, v)}
+              />
+            </div>
+          ))}
         </div>
       </div>
     </div>

@@ -130,6 +130,13 @@ export interface Question {
   client?: User;
   astrologer?: AstrologerRef;
   lastMessage?: QuestionMessage | null;
+  /** Birth/identity details the client supplied at checkout, if any. */
+  clientDetails?: {
+    clientName?: string;
+    birthDate?: string;
+    birthTime?: string;
+    birthPlace?: string;
+  } | null;
 }
 
 export interface QuestionMessage {
@@ -302,4 +309,10 @@ export interface MySite {
   templatePreviewImageUrl?: string | null;
   schema: TemplateSchema;
   site: SiteDocument;
+  /** Standard profile pricing, in paise. A service card priced 0 falls back
+   *  to these, and a card created for an astrologer with none is seeded from
+   *  them. Mirrors the public site read endpoint. */
+  questionPricePaise?: number;
+  callPricePerSlotPaise?: number;
+  slotDurationMinutes?: number;
 }

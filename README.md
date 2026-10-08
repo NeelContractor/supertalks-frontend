@@ -100,8 +100,6 @@ The frontend talks to the backend at `http://localhost:3000` (`src/lib/api.ts`).
 
 # TODO 
 
-- fix client chat window ui the input box is getting to bottom to scroll and My Questions etc things are taking a lot of space
-
 - phonepe integation - test mode working
 - cloudiary integration - done
 - production db integration - todo
@@ -115,3 +113,5 @@ The frontend talks to the backend at `http://localhost:3000` (`src/lib/api.ts`).
 - add logic to get all the location on the birth place is there any way? does shadcn input box has feature for this? as a person can make mistakes while writing place name. https://developers.google.com/maps/documentation/javascript/legacy/place-autocomplete
 
 thinking to add a feature in customize tab's Start from a palette section to add a random theme selector. by clicking on it would randomly select colour and fonts, just this two to create website theme
+
+- on the question's chat window this is not logic for astorloger to see the user details (birth date, time, place) add the logic to see that also make it togglable so that is doesnt take a lot of space.

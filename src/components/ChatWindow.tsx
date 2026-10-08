@@ -7,10 +7,37 @@ import { runCheckout, useGatewayReturn } from "@/lib/pay";
 import type { ViewAs } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Send, ArrowLeft } from "lucide-react";
+import { Send, ArrowLeft, ChevronDown } from "lucide-react";
 
 const TALKABLE = ["Queued", "Answered"];
 const CLOSED_STATUSES = ["Rejected", "Refunded"];
+
+/** "1990-05-14" -> "14 May 1990"; passes anything unparseable through. */
+function formatBirthDate(value: string | undefined): string | undefined {
+  if (!value) return value;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!m) return value;
+  const date = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+/** "18:30" -> "06:30 PM"; "06:30" -> "06:30 AM"; passes garbage through. */
+function formatBirthTime(value: string | undefined): string | undefined {
+  if (!value) return value;
+  const m = /^(\d{2}):(\d{2})$/.exec(value);
+  if (!m) return value;
+  const h = Number(m[1]);
+  if (h > 23) return value;
+  const suffix = h >= 12 ? "PM" : "AM";
+  const hh = h % 12 || 12;
+  return `${String(hh).padStart(2, "0")}:${m[2]} ${suffix}`;
+}
 
 /**
  * Full-page conversation window shared by both sides of the product. The side
@@ -30,6 +57,7 @@ export function ChatWindow({ side }: { side: ViewAs }) {
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [banner, setBanner] = useState<{ ok: boolean; message: string } | null>(null);
+  const [showDetails, setShowDetails] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
 
   // Client only: back from the payment gateway, settle & refresh the thread.
@@ -148,6 +176,36 @@ export function ChatWindow({ side }: { side: ViewAs }) {
             </div>
             <p className="truncate px-3 pb-2 text-xs text-muted-foreground">{question.questionText}</p>
           </div>
+
+          {!isClient && (
+            <div className="border-b">
+              <button
+                type="button"
+                className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-xs font-medium"
+                onClick={() => setShowDetails((v) => !v)}
+              >
+                <span className="text-muted-foreground">Client details</span>
+                <ChevronDown
+                  className={`h-4 w-4 text-muted-foreground transition-transform ${showDetails ? "rotate-180" : ""}`}
+                />
+              </button>
+              {showDetails && (
+                <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 px-3 pb-3 text-xs">
+                  {([
+                    ["Name", question.clientDetails?.clientName ?? question.client?.name],
+                    ["Birth date", formatBirthDate(question.clientDetails?.birthDate)],
+                    ["Birth time", formatBirthTime(question.clientDetails?.birthTime)],
+                    ["Birth place", question.clientDetails?.birthPlace],
+                  ] as [string, string | undefined][]).map(([label, value]) => (
+                    <div key={label}>
+                      <dt className="text-muted-foreground">{label}</dt>
+                      <dd className="font-medium">{value || "—"}</dd>
+                    </div>
+                  ))}
+                </dl>
+              )}
+            </div>
+          )}
 
           <div ref={listRef} className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
             {messages.length === 0 ? (
